@@ -1,0 +1,10 @@
+{
+  "servers": [],
+  "policy": {
+    "default": "deny",
+    "require_review_before_enable": true,
+    "require_per_tool_allowlist": true,
+    "require_approval_for_external_writes": true
+  },
+  "notes": "Add only reviewed MCP servers. Do not store credentials in this file."
+}
