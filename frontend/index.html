@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JARVIS AI</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="orb"></span><div><b>JARVIS</b><small>PERSONAL AI SYSTEM</small></div></div>
+      <nav><a class="active" href="#overview">Обзор</a><a href="#assistant">Ассистент</a><a href="#tasks">Задачи</a><a href="#memory">Память</a><a href="#connections">Интеграции</a></nav>
+      <div class="side-foot">LOCAL-FIRST · HYBRID READY<br><span id="health">Проверка системы…</span></div>
+    </aside>
+    <main>
+      <header><div><p class="eyebrow">PERSONAL COMMAND CENTER</p><h1>Добро пожаловать.</h1><p class="muted">Ваш персональный центр управления задачами и знаниями.</p></div><div class="status"><i></i> LOCAL CORE</div></header>
+      <section class="grid">
+        <article class="panel hero" id="assistant">
+          <div class="panel-head"><div><p class="eyebrow">AI ASSISTANT</p><h2>Чем займёмся?</h2></div><span class="chip">GPT CONNECTOR</span></div>
+          <div id="chatlog" class="chatlog"><div class="bubble jarvis">Я JARVIS. Напишите команду или воспользуйтесь голосовым вводом. Внешние действия пока не выполняются автоматически.</div></div>
+          <form id="chatform" class="composer"><input id="message" placeholder="Напишите сообщение JARVIS…" autocomplete="off"><button>Отправить</button><button type="button" class="secondary" id="voice">🎙</button></form>
+        </article>
+        <article class="panel" id="tasks">
+          <div class="panel-head"><div><p class="eyebrow">TASK MANAGER</p><h2>Задачи</h2></div><span class="count" id="taskcount">0</span></div>
+          <form id="taskform" class="task-add"><input id="tasktitle" placeholder="Новая задача…" required><button>+</button></form>
+          <ul id="taskslist" class="tasks"></ul>
+        </article>
+        <article class="panel" id="memory">
+          <div class="panel-head"><div><p class="eyebrow">LONG-TERM MEMORY</p><h2>Память</h2></div><span class="chip">SQLITE</span></div>
+          <form id="memoryform"><textarea id="memorytext" placeholder="Сохранить важную информацию…"></textarea><input id="memorytags" placeholder="Теги (необязательно)"><button>Сохранить в память</button></form>
+          <div id="memorylist" class="memory-list"></div>
+        </article>
+        <article class="panel" id="connections">
+          <div class="panel-head"><div><p class="eyebrow">INTEGRATIONS</p><h2>Подключения</h2></div><span class="chip">STATUS</span></div>
+          <div class="connection"><span>Obsidian Local REST API</span><b id="obsidian">Не настроен</b></div>
+          <div class="connection"><span>OpenAI API</span><b id="openai">Проверяется при запросе</b></div>
+          <div class="connection"><span>Google Mail / Calendar</span><b class="planned">Планируется</b></div>
+          <div class="connection"><span>MCP tools</span><b class="planned">Планируется</b></div>
+          <div class="connection"><span>Voice engines</span><b class="planned">Браузер / далее offline</b></div>
+          <p class="hint">Секреты и ключи хранятся только в локальном файле .env.</p>
+        </article>
+      </section>
+      <footer>JARVIS AI · DEVELOPMENT BUILD 0.2 · YOUR DATA STAYS LOCAL BY DEFAULT</footer>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
