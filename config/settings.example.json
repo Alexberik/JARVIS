@@ -1,8 +1,5 @@
 {
-  "server": {
-    "host": "127.0.0.1",
-    "port": 8765
-  },
+  "server": { "host": "127.0.0.1", "port": 8765 },
   "obsidian": {
     "mode": "rest",
     "rest": {
@@ -10,8 +7,12 @@
       "api_key": "PASTE_YOUR_LOCAL_REST_API_KEY_HERE",
       "verify_ssl": false
     },
-    "filesystem": {
-      "vault_path": "C:/Users/YOU/Documents/ObsidianVault"
+    "filesystem": { "vault_path": "" },
+    "notes": {
+      "log": "JARVIS/Log.md",
+      "inbox": "JARVIS/Inbox.md",
+      "tasks": "JARVIS/Tasks.md",
+      "memory": "JARVIS/Memory.md"
     }
   },
   "llm": {
@@ -19,8 +20,20 @@
     "ollama_base": "http://127.0.0.1:11434",
     "model": "llama3.2"
   },
-  "ui": {
-    "theme": "cyan_hud",
-    "language": "ru"
-  }
+  "voice": {
+    "enabled": false,
+    "wake_word": "джарвис",
+    "stt": { "engine": "sherpa_onnx", "model_dir": "models/stt", "language": "ru" },
+    "tts": { "engine": "piper", "model_path": "models/tts/ru_RU-dmitri-medium.onnx" }
+  },
+  "tools": {
+    "weather": { "enabled": true, "default_city": "Tbilisi" },
+    "tasks": { "enabled": true },
+    "email": { "enabled": false },
+    "calendar": { "enabled": false },
+    "social": { "enabled": false },
+    "browser": { "enabled": false },
+    "image_gen": { "enabled": false }
+  },
+  "ui": { "theme": "cyan_hud", "language": "ru" }
 }

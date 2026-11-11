@@ -1,20 +1,33 @@
-"""Simple command orchestrator for JARVIS MVP."""
+"""
+JARVIS orchestrator — rule-based routing + tools.
+Later: free-form via Ollama when no rule matches.
+"""
 from __future__ import annotations
+
 import re
-from datetime import datetime
-from typing import Any
+from typing import Any, Callable
+
 from .obsidian_client import ObsidianClient
+from .tools.weather import weather_tool
+from .tools.tasks import tasks_tool
+from .tools.system_info import time_tool, help_catalog
+
 
 class Orchestrator:
     def __init__(self, obsidian: ObsidianClient, settings: dict):
         self.obsidian = obsidian
         self.settings = settings
-        self.handlers = [
+        notes = (settings.get("obsidian") or {}).get("notes") or {}
+        self.tasks_path = notes.get("tasks") or "JARVIS/Tasks.md"
+        self.handlers: list[tuple[re.Pattern, Callable]] = [
             (re.compile(r"(статус|status|ping|подключ)", re.I), self._status),
             (re.compile(r"(список|list).*(замет|note|файл|file|vault)", re.I), self._list_notes),
             (re.compile(r"(найди|поиск|search|ищи)\s+(.+)", re.I), self._search),
             (re.compile(r"(прочитай|read|открой|open)\s+(.+)", re.I), self._read),
-            (re.compile(r"(запиши|write|создай заметку|create note)\s+([^\n]+)", re.I), self._write_hint),
+            (re.compile(r"(запиши|write|создай заметку)\s+([^\n]+)", re.I), self._write_hint),
+            (re.compile(r"(погод\w*|weather)(?:\s+(.+))?", re.I), self._weather),
+            (re.compile(r"(добавь задачу|новая задача|task add)\s+(.+)", re.I), self._task_add),
+            (re.compile(r"(задачи|tasks|todo|список задач)", re.I), self._task_list),
             (re.compile(r"(время|time|дата|date)", re.I), self._time),
             (re.compile(r"(помощь|help|команды|commands)", re.I), self._help),
         ]
@@ -23,26 +36,48 @@ class Orchestrator:
         text = (text or "").strip()
         if not text:
             return {"reply": "Слушаю. Скажи «помощь» для списка команд.", "tool": None}
-        m_write = re.match(r"(?:запиши|write|сохрани)\s+(?:в\s+)?([^\s:]+\.md)\s*[:\-]\s*(.+)", text, re.I | re.S)
+
+        m_write = re.match(
+            r"(?:запиши|write|сохрани)\s+(?:в\s+)?([^\s:]+\.md)\s*[:\-]\s*(.+)",
+            text,
+            re.I | re.S,
+        )
         if m_write:
             return self._write(m_write.group(1).strip(), m_write.group(2).strip())
-        m_append = re.match(r"(?:добавь|append)\s+(?:в\s+)?([^\s:]+\.md)\s*[:\-]\s*(.+)", text, re.I | re.S)
+
+        m_append = re.match(
+            r"(?:добавь|append)\s+(?:в\s+)?([^\s:]+\.md)\s*[:\-]\s*(.+)",
+            text,
+            re.I | re.S,
+        )
         if m_append:
             return self._write(m_append.group(1).strip(), m_append.group(2).strip(), append=True)
+
         for pattern, fn in self.handlers:
             m = pattern.search(text)
             if m:
                 return fn(m, text)
-        return {"reply": "Пока режим команд (без LLM). Примеры: статус, список заметок, найди проект, прочитай Inbox.md, запиши в JARVIS/Log.md: текст, помощь.", "tool": None}
+
+        return {
+            "reply": (
+                "Команда не распознана. Пока без LLM — только правила.\n"
+                "Примеры: статус, погода, задачи, добавь задачу …, "
+                "найди …, запиши в JARVIS/Log.md: текст, помощь."
+            ),
+            "tool": None,
+        }
 
     def _status(self, m, text):
         st = self.obsidian.status()
+        voice = (self.settings.get("voice") or {}).get("enabled")
+        llm = (self.settings.get("llm") or {}).get("provider")
         if st.get("ok"):
             reply = f"Obsidian подключён (режим: {st.get('mode')})."
             if st.get("vault"):
                 reply += f" Vault: {st['vault']}"
         else:
-            reply = f"Obsidian недоступен: {st.get('error', 'unknown')}. Проверь Local REST API / vault_path."
+            reply = f"Obsidian недоступен: {st.get('error', 'unknown')}."
+        reply += f"\nLLM: {llm or 'none'} | Voice: {'on' if voice else 'off'}"
         return {"reply": reply, "tool": "obsidian.status", "data": st}
 
     def _list_notes(self, m, text):
@@ -96,8 +131,24 @@ class Orchestrator:
         except Exception as e:
             return {"reply": f"Ошибка записи: {e}", "tool": "obsidian.write", "error": str(e)}
 
+    def _weather(self, m, text):
+        city = ""
+        if m.lastindex and m.lastindex >= 2 and m.group(2):
+            city = m.group(2).strip()
+            city = re.sub(r"^(в|во)\s+", "", city, flags=re.I)
+        if not city:
+            city = ((self.settings.get("tools") or {}).get("weather") or {}).get("default_city") or "Tbilisi"
+        return weather_tool(city=city)
+
+    def _task_list(self, m, text):
+        return tasks_tool(action="list", obsidian=self.obsidian, path=self.tasks_path)
+
+    def _task_add(self, m, text):
+        item = m.group(2).strip() if m.lastindex >= 2 else ""
+        return tasks_tool(action="add", text=item, obsidian=self.obsidian, path=self.tasks_path)
+
     def _time(self, m, text):
-        return {"reply": f"Сейчас: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", "tool": "system.time"}
+        return time_tool()
 
     def _help(self, m, text):
-        return {"reply": "**Команды JARVIS (MVP)**\n• статус\n• список заметок\n• найди <запрос>\n• прочитай <path.md>\n• запиши в path.md: текст\n• добавь в path.md: текст\n• время", "tool": "help"}
+        return help_catalog()
