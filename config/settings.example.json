@@ -1,0 +1,26 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8765
+  },
+  "obsidian": {
+    "mode": "rest",
+    "rest": {
+      "base_url": "https://127.0.0.1:27124",
+      "api_key": "PASTE_YOUR_LOCAL_REST_API_KEY_HERE",
+      "verify_ssl": false
+    },
+    "filesystem": {
+      "vault_path": "C:/Users/YOU/Documents/ObsidianVault"
+    }
+  },
+  "llm": {
+    "provider": "none",
+    "ollama_base": "http://127.0.0.1:11434",
+    "model": "llama3.2"
+  },
+  "ui": {
+    "theme": "cyan_hud",
+    "language": "ru"
+  }
+}
