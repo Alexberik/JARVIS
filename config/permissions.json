@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "default": "deny",
+  "rules": {
+    "local.tasks.read": "allow",
+    "local.tasks.write": "allow",
+    "local.memory.read": "allow",
+    "local.memory.write": "allow",
+    "obsidian.search": "allow",
+    "obsidian.note.create": "confirm",
+    "gmail.read": "allow",
+    "gmail.send": "confirm",
+    "calendar.read": "allow",
+    "calendar.write": "confirm",
+    "social.publish": "confirm",
+    "browser.navigate": "confirm",
+    "desktop.control": "disabled",
+    "shell.execute": "disabled",
+    "finance.trade": "disabled",
+    "filesystem.delete": "disabled",
+    "remote.access": "disabled"
+  }
+}
