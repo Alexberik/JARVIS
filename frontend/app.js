@@ -1,11 +1,151 @@
-const $=s=>document.querySelector(s);
-async function api(path,options={}){const r=await fetch(path,{headers:{"Content-Type":"application/json",...(options.headers||{})},...options});if(!r.ok)throw new Error((await r.text()).slice(0,300));return r.json()}
-function bubble(text,kind){const el=document.createElement("div");el.className="bubble "+kind;el.textContent=text;$("#chatlog").append(el);$("#chatlog").scrollTop=$("#chatlog").scrollHeight}
-async function refreshTasks(){const rows=await api("/api/tasks");$("#taskcount").textContent=rows.length;$("#taskslist").replaceChildren();for(const t of rows){const li=document.createElement("li");if(t.done)li.classList.add("done");const label=document.createElement("span");label.textContent=t.title;const toggle=document.createElement("button");toggle.textContent=t.done?"↶":"✓";toggle.onclick=async()=>{await api("/api/tasks/"+t.id,{method:"PATCH"});refreshTasks()};const del=document.createElement("button");del.textContent="×";del.onclick=async()=>{await api("/api/tasks/"+t.id,{method:"DELETE"});refreshTasks()};li.append(label,toggle,del);$("#taskslist").append(li)}}
-async function refreshMemory(){const rows=await api("/api/memory");$("#memorylist").replaceChildren();for(const m of rows){const el=document.createElement("div");el.className="memory-item";el.textContent=m.content;const small=document.createElement("small");small.textContent=(m.tags||"")+(m.created_at?" · "+new Date(m.created_at).toLocaleString():"");el.append(small);$("#memorylist").append(el)}}
-$("#taskform").onsubmit=async e=>{e.preventDefault();const title=$("#tasktitle").value.trim();if(!title)return;await api("/api/tasks",{method:"POST",body:JSON.stringify({title})});$("#tasktitle").value="";refreshTasks()};
-$("#memoryform").onsubmit=async e=>{e.preventDefault();const content=$("#memorytext").value.trim();if(!content)return;await api("/api/memory",{method:"POST",body:JSON.stringify({content,tags:$("#memorytags").value})});$("#memorytext").value="";refreshMemory()};
-$("#chatform").onsubmit=async e=>{e.preventDefault();const message=$("#message").value.trim();if(!message)return;$("#message").value="";bubble(message,"user");try{const result=await api("/api/chat",{method:"POST",body:JSON.stringify({message})});bubble(result.reply||JSON.stringify(result),"jarvis")}catch(err){bubble("Ошибка: "+err.message,"jarvis")}};
-async function status(){try{await api("/api/health");$("#health").textContent="CORE ONLINE";const o=await api("/api/obsidian/status");$("#obsidian").textContent=(o.ok||o.connected)?"Подключён":(o.configured?"Ошибка соединения":"Не настроен")}catch(e){$("#health").textContent="CORE OFFLINE"}}
-$("#voice").onclick=()=>{const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){bubble("Голосовой ввод не поддерживается этим браузером. Попробуйте Chrome или Edge.","jarvis");return}const rec=new SR();rec.lang="ru-RU";rec.onresult=e=>$("#message").value=e.results[0][0].transcript;rec.start()};
-refreshTasks().catch(()=>{});refreshMemory().catch(()=>{});status();
+const $ = (selector) => document.querySelector(selector);
+
+async function api(path, options = {}) {
+  const response = await fetch(path, {
+    ...options,
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) }
+  });
+  if (!response.ok) {
+    let message = await response.text();
+    try { message = JSON.parse(message).error || message; } catch {}
+    throw new Error(message.slice(0, 300) || response.statusText);
+  }
+  if (response.status === 204) return null;
+  return response.json();
+}
+
+function bubble(text, kind = "jarvis") {
+  const element = document.createElement("div");
+  element.className = "bubble " + kind;
+  element.textContent = String(text);
+  $("#chatlog").append(element);
+  $("#chatlog").scrollTop = $("#chatlog").scrollHeight;
+}
+
+function showPanelError(selector, message) {
+  const target = $(selector);
+  if (target) target.textContent = "Ошибка: " + message;
+}
+
+async function refreshTasks() {
+  const tasks = await api("/api/tasks");
+  $("#taskcount").textContent = tasks.length;
+  const list = $("#taskslist");
+  list.replaceChildren();
+  for (const task of tasks) {
+    const item = document.createElement("li");
+    if (task.done) item.classList.add("done");
+    const title = document.createElement("span");
+    title.textContent = task.title;
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.textContent = task.done ? "↶" : "✓";
+    toggle.title = task.done ? "Вернуть в активные" : "Выполнено";
+    toggle.onclick = async () => {
+      try { await api("/api/tasks/" + encodeURIComponent(task.id), { method: "PATCH" }); await refreshTasks(); }
+      catch (error) { bubble("Не удалось обновить задачу: " + error.message); }
+    };
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "×";
+    remove.title = "Удалить задачу";
+    remove.onclick = async () => {
+      if (!window.confirm("Удалить эту задачу?")) return;
+      try { await api("/api/tasks/" + encodeURIComponent(task.id), { method: "DELETE" }); await refreshTasks(); }
+      catch (error) { bubble("Не удалось удалить задачу: " + error.message); }
+    };
+    item.append(title, toggle, remove);
+    list.append(item);
+  }
+}
+
+async function refreshMemory() {
+  const memories = await api("/api/memory");
+  const list = $("#memorylist");
+  list.replaceChildren();
+  for (const memory of memories) {
+    const item = document.createElement("div");
+    item.className = "memory-item";
+    item.textContent = memory.content;
+    const meta = document.createElement("small");
+    const date = memory.created_at ? new Date(memory.created_at).toLocaleString() : "";
+    meta.textContent = [memory.tags, date].filter(Boolean).join(" · ");
+    item.append(meta);
+    list.append(item);
+  }
+}
+
+$("#taskform").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const input = $("#tasktitle");
+  const title = input.value.trim();
+  if (!title) return;
+  try {
+    await api("/api/tasks", { method: "POST", body: JSON.stringify({ title }) });
+    input.value = "";
+    await refreshTasks();
+  } catch (error) { bubble("Не удалось сохранить задачу: " + error.message); }
+});
+
+$("#memoryform").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const input = $("#memorytext");
+  const content = input.value.trim();
+  if (!content) return;
+  try {
+    await api("/api/memory", {
+      method: "POST",
+      body: JSON.stringify({ content, tags: $("#memorytags").value.trim() })
+    });
+    input.value = "";
+    await refreshMemory();
+  } catch (error) { bubble("Не удалось сохранить память: " + error.message); }
+});
+
+$("#chatform").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const input = $("#message");
+  const message = input.value.trim();
+  if (!message) return;
+  input.value = "";
+  bubble(message, "user");
+  try {
+    const result = await api("/api/chat", { method: "POST", body: JSON.stringify({ message }) });
+    bubble(result.reply || JSON.stringify(result));
+  } catch (error) { bubble("Ошибка: " + error.message); }
+});
+
+async function refreshStatus() {
+  try {
+    const health = await api("/api/health");
+    $("#health").textContent = "CORE ONLINE · " + health.version;
+  } catch {
+    $("#health").textContent = "CORE OFFLINE";
+  }
+  try {
+    const status = await api("/api/obsidian/status");
+    $("#obsidian").textContent = status.ok ? "Подключён" :
+      (status.configured ? "Ошибка соединения" : "Не настроен");
+    $("#obsidian").title = status.error || "";
+  } catch {
+    $("#obsidian").textContent = "Недоступен";
+  }
+}
+
+$("#voice").addEventListener("click", () => {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    bubble("Голосовой ввод не поддерживается этим браузером. Используйте Chrome или Edge.");
+    return;
+  }
+  const recognition = new SpeechRecognition();
+  recognition.lang = "ru-RU";
+  recognition.interimResults = false;
+  recognition.onresult = (event) => { $("#message").value = event.results[0][0].transcript; };
+  recognition.onerror = (event) => bubble("Ошибка голосового ввода: " + event.error);
+  recognition.start();
+});
+
+refreshTasks().catch((error) => showPanelError("#taskslist", error.message));
+refreshMemory().catch((error) => showPanelError("#memorylist", error.message));
+refreshStatus();
