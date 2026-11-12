@@ -16,11 +16,13 @@ class ObsidianClient:
 
     def status(self) -> dict[str, Any]:
         if self.mode == "rest":
+            if not self.rest.get("api_key") or self.rest.get("api_key") == "PASTE_YOUR_LOCAL_REST_API_KEY_HERE":
+                return {"ok": False, "connected": False, "configured": False, "mode": "rest", "error": "Local REST API key is not configured"}
             try:
                 data = self._rest_get("/")
-                return {"ok": True, "mode": "rest", "detail": data}
+                return {"ok": True, "connected": True, "configured": True, "mode": "rest", "detail": data}
             except Exception as e:
-                return {"ok": False, "mode": "rest", "error": str(e)}
+                return {"ok": False, "connected": False, "configured": True, "mode": "rest", "error": str(e)[:240]}
         if self._vault and self._vault.is_dir():
             return {"ok": True, "mode": "filesystem", "vault": str(self._vault)}
         return {"ok": False, "mode": "filesystem", "error": "vault_path missing or not a directory"}
@@ -108,8 +110,12 @@ class ObsidianClient:
     def _safe_path(self, rel: str) -> Path:
         if not self._vault:
             raise RuntimeError("vault_path not configured")
-        target = (self._vault / rel).resolve()
-        if not str(target).startswith(str(self._vault.resolve())):
+        normalized = str(rel or "").replace("\\", "/").strip("/")
+        if not normalized or any(part in ("", ".", "..") for part in normalized.split("/")):
+            raise ValueError("A safe relative vault path is required")
+        root = self._vault.resolve()
+        target = (root / normalized).resolve()
+        if not target.is_relative_to(root):
             raise PermissionError("path escapes vault")
         return target
 
