@@ -1,13 +1,13 @@
 {
   "server": { "host": "127.0.0.1", "port": 8765 },
   "obsidian": {
-    "mode": "rest",
+    "mode": "filesystem",
     "rest": {
       "base_url": "https://127.0.0.1:27124",
       "api_key": "PASTE_YOUR_LOCAL_REST_API_KEY_HERE",
       "verify_ssl": false
     },
-    "filesystem": { "vault_path": "" },
+    "filesystem": { "vault_path": "JARVIS" },
     "notes": {
       "log": "JARVIS/Log.md",
       "inbox": "JARVIS/Inbox.md",
