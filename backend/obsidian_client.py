@@ -24,8 +24,8 @@ class ObsidianClient:
             except Exception as e:
                 return {"ok": False, "connected": False, "configured": True, "mode": "rest", "error": str(e)[:240]}
         if self._vault and self._vault.is_dir():
-            return {"ok": True, "mode": "filesystem", "vault": str(self._vault)}
-        return {"ok": False, "mode": "filesystem", "error": "vault_path missing or not a directory"}
+            return {"ok": True, "connected": True, "configured": True, "mode": "filesystem", "vault": str(self._vault)}
+        return {"ok": False, "connected": False, "configured": False, "mode": "filesystem", "error": "vault_path missing or not a directory"}
 
     def list_files(self, path: str = "") -> list[str]:
         if self.mode == "rest":
@@ -104,8 +104,13 @@ class ObsidianClient:
 
     @staticmethod
     def _enc(path: str) -> str:
-        parts = path.replace("\\", "/").strip("/").split("/")
-        return "/".join(urllib.parse.quote(p) for p in parts if p)
+        normalized = str(path or "").replace("\\", "/").strip("/")
+        if not normalized:
+            return ""
+        parts = normalized.split("/")
+        if any(part in ("", ".", "..") for part in parts):
+            raise ValueError("A safe relative vault path is required")
+        return "/".join(urllib.parse.quote(part, safe="") for part in parts)
 
     def _safe_path(self, rel: str) -> Path:
         if not self._vault:
