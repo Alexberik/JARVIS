@@ -7,7 +7,7 @@ Local-first personal assistant for Windows: browser cockpit, Obsidian bridge, ru
 Use the included Windows launcher:
 
 ```powershell
-.`start.bat
+.\start.bat
 ```
 
 Then open http://127.0.0.1:8765.
