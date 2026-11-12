@@ -27,6 +27,37 @@ function showPanelError(selector, message) {
   if (target) target.textContent = "Ошибка: " + message;
 }
 
+function speak(text) {
+  if (!$("#speakReplies").checked || !("speechSynthesis" in window)) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(String(text).slice(0, 1800));
+  utterance.lang = "ru-RU";
+  utterance.rate = 1;
+  const voices = window.speechSynthesis.getVoices();
+  const russian = voices.find((voice) => voice.lang.toLowerCase().startsWith("ru"));
+  if (russian) utterance.voice = russian;
+  window.speechSynthesis.speak(utterance);
+}
+
+async function sendCommand(message, source = "text") {
+  if (!message.trim()) return;
+  bubble(message, "user");
+  $("#assistantMode").textContent = source === "voice" ? "Обрабатываю голосовую команду" : "Обрабатываю команду";
+  $("#reactor").classList.add("working");
+  try {
+    const result = await api("/api/chat", { method: "POST", body: JSON.stringify({ message }) });
+    const reply = result.reply || JSON.stringify(result);
+    bubble(reply);
+    speak(reply);
+    $("#assistantMode").textContent = "JARVIS готов";
+  } catch (error) {
+    bubble("Ошибка: " + error.message);
+    $("#assistantMode").textContent = "Ошибка выполнения";
+  } finally {
+    $("#reactor").classList.remove("working");
+  }
+}
+
 async function refreshTasks() {
   const tasks = await api("/api/tasks");
   $("#taskcount").textContent = tasks.length;
@@ -108,43 +139,97 @@ $("#chatform").addEventListener("submit", async (event) => {
   const message = input.value.trim();
   if (!message) return;
   input.value = "";
-  bubble(message, "user");
-  try {
-    const result = await api("/api/chat", { method: "POST", body: JSON.stringify({ message }) });
-    bubble(result.reply || JSON.stringify(result));
-  } catch (error) { bubble("Ошибка: " + error.message); }
+  await sendCommand(message, "text");
+});
+
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const canSpeak = "speechSynthesis" in window;
+$("#voiceState").textContent = SpeechRecognition ? (canSpeak ? "Ввод и озвучивание доступны" : "Доступен ввод") : (canSpeak ? "Доступно озвучивание" : "Недоступно");
+$("#voiceConnection").textContent = SpeechRecognition && canSpeak ? "Браузер поддерживает" : "Ограниченная поддержка";
+$("#voiceDot").classList.toggle("online", Boolean(SpeechRecognition || canSpeak));
+if (!SpeechRecognition) {
+  $("#voice").disabled = true;
+  $("#voiceHint").textContent = "Для голосового ввода откройте JARVIS в Chrome или Edge";
+}
+
+let recognition = null;
+let listening = false;
+
+$("#voice").addEventListener("click", () => {
+  if (!SpeechRecognition) {
+    bubble("Голосовой ввод не поддерживается. Используйте актуальный Chrome или Edge.");
+    return;
+  }
+  if (listening && recognition) {
+    recognition.stop();
+    return;
+  }
+  recognition = new SpeechRecognition();
+  recognition.lang = "ru-RU";
+  recognition.interimResults = true;
+  recognition.continuous = false;
+  recognition.onstart = () => {
+    listening = true;
+    $("#voice").classList.add("recording");
+    $("#reactor").classList.add("listening");
+    $("#assistantMode").textContent = "Слушаю вас";
+    $("#voiceHint").textContent = "Говорите — команда отправится после распознавания";
+    $("#recognitionStatus").textContent = "Микрофон активен";
+  };
+  recognition.onresult = (event) => {
+    let finalText = "";
+    let interimText = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      if (event.results[i].isFinal) finalText += event.results[i][0].transcript;
+      else interimText += event.results[i][0].transcript;
+    }
+    $("#message").value = finalText || interimText;
+    if (finalText.trim()) {
+      $("#message").value = "";
+      recognition.stop();
+      sendCommand(finalText.trim(), "voice");
+    }
+  };
+  recognition.onerror = (event) => {
+    $("#recognitionStatus").textContent = "Ошибка микрофона: " + event.error;
+    bubble("Ошибка голосового ввода: " + event.error);
+  };
+  recognition.onend = () => {
+    listening = false;
+    $("#voice").classList.remove("recording");
+    $("#reactor").classList.remove("listening");
+    $("#assistantMode").textContent = "JARVIS готов";
+    $("#voiceHint").textContent = "Нажмите микрофон или напишите команду";
+    if ($("#recognitionStatus").textContent === "Микрофон активен") $("#recognitionStatus").textContent = "Голос: ожидание";
+  };
+  try { recognition.start(); }
+  catch (error) { bubble("Не удалось включить микрофон: " + error.message); }
+});
+
+$("#speakReplies").addEventListener("change", () => {
+  if (!$("#speakReplies").checked && canSpeak) window.speechSynthesis.cancel();
 });
 
 async function refreshStatus() {
   try {
     const health = await api("/api/health");
     $("#health").textContent = "CORE ONLINE · " + health.version;
+    $("#coreState").textContent = "Работает · " + health.version;
   } catch {
     $("#health").textContent = "CORE OFFLINE";
+    $("#coreState").textContent = "Нет соединения";
   }
   try {
     const status = await api("/api/obsidian/status");
-    $("#obsidian").textContent = status.ok ? "Подключён" :
-      (status.configured ? "Ошибка соединения" : "Не настроен");
-    $("#obsidian").title = status.error || "";
+    $("#obsidian").textContent = status.ok ? "Подключён" : (status.configured ? "Ошибка" : "Не настроен");
+    $("#obsidianMode").textContent = status.ok ? (status.mode === "filesystem" ? "Файловый доступ" : "REST API") : "Нет соединения";
+    $("#obsidian").title = status.error || status.vault || "";
+    $("#obsidianDot").classList.toggle("online", Boolean(status.ok));
   } catch {
     $("#obsidian").textContent = "Недоступен";
+    $("#obsidianMode").textContent = "Недоступен";
   }
 }
-
-$("#voice").addEventListener("click", () => {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) {
-    bubble("Голосовой ввод не поддерживается этим браузером. Используйте Chrome или Edge.");
-    return;
-  }
-  const recognition = new SpeechRecognition();
-  recognition.lang = "ru-RU";
-  recognition.interimResults = false;
-  recognition.onresult = (event) => { $("#message").value = event.results[0][0].transcript; };
-  recognition.onerror = (event) => bubble("Ошибка голосового ввода: " + event.error);
-  recognition.start();
-});
 
 refreshTasks().catch((error) => showPanelError("#taskslist", error.message));
 refreshMemory().catch((error) => showPanelError("#memorylist", error.message));
