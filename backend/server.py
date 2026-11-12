@@ -42,6 +42,10 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         sys.stderr.write("[JARVIS] " + (fmt % args) + "\n")
 
+    def _host_allowed(self) -> bool:
+        host = (self.headers.get("Host") or "").lower()
+        return host in {"127.0.0.1:8765", "localhost:8765", "127.0.0.1", "localhost"}
+
     def _json(self, code: int, data):
         payload = json.dumps(data, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
@@ -74,10 +78,14 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_OPTIONS(self):
+        if not self._host_allowed():
+            return self._json(403, {"error": "invalid host"})
         self.send_response(204)
         self.end_headers()
 
     def do_GET(self):
+        if not self._host_allowed():
+            return self._json(403, {"error": "invalid host"})
         parsed = urlparse(self.path)
         path = parsed.path
         if path == "/api/health":
@@ -105,6 +113,8 @@ class Handler(BaseHTTPRequestHandler):
         return self._json(404, {"error": "not found"})
 
     def do_POST(self):
+        if not self._host_allowed():
+            return self._json(403, {"error": "invalid host"})
         parsed = urlparse(self.path)
         try:
             body = self._read_body()
@@ -153,6 +163,8 @@ class Handler(BaseHTTPRequestHandler):
         return self._json(404, {"error": "not found"})
 
     def do_PATCH(self):
+        if not self._host_allowed():
+            return self._json(403, {"error": "invalid host"})
         match = re.fullmatch(r"/api/tasks/([0-9a-fA-F-]{36})", urlparse(self.path).path)
         if not match:
             return self._json(404, {"error": "not found"})
@@ -162,6 +174,8 @@ class Handler(BaseHTTPRequestHandler):
         return self._json(200, item)
 
     def do_DELETE(self):
+        if not self._host_allowed():
+            return self._json(403, {"error": "invalid host"})
         match = re.fullmatch(r"/api/tasks/([0-9a-fA-F-]{36})", urlparse(self.path).path)
         if not match:
             return self._json(404, {"error": "not found"})
