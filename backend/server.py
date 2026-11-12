@@ -1,116 +1,65 @@
 #!/usr/bin/env python3
-"""
-JARVIS local server — pure stdlib HTTP + optional Obsidian bridge.
-Run: python backend/server.py   (from project root)
-"""
-
+"""JARVIS local-first HTTP server. Run from the repository root with start.bat."""
 from __future__ import annotations
 
 import json
 import mimetypes
+import re
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from backend.obsidian_client import ObsidianClient
 from backend.orchestrator import Orchestrator
+from backend.storage import Store
 
 CONFIG_PATH = ROOT / "config" / "settings.json"
 EXAMPLE_PATH = ROOT / "config" / "settings.example.json"
 FRONTEND = ROOT / "frontend"
+DATA_PATH = ROOT / "data" / "jarvis.db"
 
 
 def load_settings() -> dict:
     path = CONFIG_PATH if CONFIG_PATH.exists() else EXAMPLE_PATH
-    # utf-8-sig strips Windows BOM from PowerShell Set-Content
-    with open(path, encoding="utf-8-sig") as f:
-        return json.load(f)
+    with path.open(encoding="utf-8-sig") as stream:
+        return json.load(stream)
 
 
 SETTINGS = load_settings()
 OBSIDIAN = ObsidianClient(SETTINGS.get("obsidian", {}))
 ORCH = Orchestrator(OBSIDIAN, SETTINGS)
+STORE = Store(DATA_PATH)
+MAX_BODY = 1_000_000
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "JARVIS/0.1"
+    server_version = "JARVIS/0.3"
 
     def log_message(self, fmt, *args):
         sys.stderr.write("[JARVIS] " + (fmt % args) + "\n")
 
-    def _cors(self):
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-
-    def do_OPTIONS(self):
-        self.send_response(204)
-        self._cors()
-        self.end_headers()
-
-    def do_GET(self):
-        path = urlparse(self.path).path
-        if path == "/api/health":
-            return self._json(200, {"ok": True, "name": "JARVIS", "version": "0.1"})
-        if path == "/api/obsidian/status":
-            return self._json(200, OBSIDIAN.status())
-        if path in ("/", "/index.html"):
-            return self._file(FRONTEND / "index.html")
-
-        # The frontend references /static/style.css and /static/app.js.
-        # Map /static/* to files directly inside frontend/ (not frontend/static/).
-        if path.startswith("/static/"):
-            rel = path[len("/static/"):]
-        else:
-            rel = path.lstrip("/")
-
-        candidate = (FRONTEND / rel).resolve()
-        frontend_root = FRONTEND.resolve()
-        if candidate.is_relative_to(frontend_root) and candidate.is_file():
-            return self._file(candidate)
-        self._json(404, {"error": "not found"})
-
-    def do_POST(self):
-        parsed = urlparse(self.path)
-        length = int(self.headers.get("Content-Length") or 0)
-        raw = self.rfile.read(length) if length else b"{}"
-        try:
-            body = json.loads(raw.decode("utf-8") or "{}")
-        except json.JSONDecodeError:
-            return self._json(400, {"error": "invalid json"})
-        if parsed.path == "/api/chat":
-            msg = body.get("message") or body.get("text") or ""
-            return self._json(200, ORCH.handle(msg))
-        if parsed.path == "/api/obsidian/read":
-            try:
-                return self._json(200, {"ok": True, "content": OBSIDIAN.read_note(body.get("path", ""))})
-            except Exception as e:
-                return self._json(400, {"ok": False, "error": str(e)})
-        if parsed.path == "/api/obsidian/write":
-            try:
-                r = OBSIDIAN.write_note(body.get("path", ""), body.get("content", ""), append=bool(body.get("append")))
-                return self._json(200, r)
-            except Exception as e:
-                return self._json(400, {"ok": False, "error": str(e)})
-        if parsed.path == "/api/obsidian/search":
-            try:
-                return self._json(200, {"ok": True, "results": OBSIDIAN.search(body.get("query", ""))})
-            except Exception as e:
-                return self._json(400, {"ok": False, "error": str(e)})
-        self._json(404, {"error": "not found"})
-
-    def _json(self, code: int, data: dict):
+    def _json(self, code: int, data):
         payload = json.dumps(data, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
-        self._cors()
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(payload)
+
+    def _read_body(self):
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            raise ValueError("Invalid Content-Length")
+        if length < 0 or length > MAX_BODY:
+            raise ValueError("Request body too large")
+        raw = self.rfile.read(length) if length else b"{}"
+        return json.loads(raw.decode("utf-8-sig"))
 
     def _file(self, path: Path):
         data = path.read_bytes()
@@ -118,25 +67,125 @@ class Handler(BaseHTTPRequestHandler):
         if ctype.startswith("text/") or ctype in ("application/javascript", "application/json"):
             ctype += "; charset=utf-8"
         self.send_response(200)
-        self._cors()
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
+        self.send_header("X-Content-Type-Options", "nosniff")
         self.end_headers()
         self.wfile.write(data)
 
+    def do_OPTIONS(self):
+        self._json(204, {})
+
+    def do_GET(self):
+        parsed = urlparse(self.path)
+        path = parsed.path
+        if path == "/api/health":
+            return self._json(200, {"ok": True, "name": "JARVIS", "version": "0.3"})
+        if path == "/api/obsidian/status":
+            return self._json(200, OBSIDIAN.status())
+        if path == "/api/tasks":
+            return self._json(200, STORE.list_tasks())
+        if path == "/api/memory":
+            query = parse_qs(parsed.query).get("q", [""])[0][:200]
+            return self._json(200, STORE.list_memories(query))
+        if path == "/api/audit":
+            with STORE.connect() as con:
+                rows = con.execute(
+                    "SELECT event,details,created_at FROM audit_log ORDER BY created_at DESC LIMIT 100"
+                ).fetchall()
+            return self._json(200, [dict(row) for row in rows])
+        if path in ("/", "/index.html"):
+            return self._file(FRONTEND / "index.html")
+        if path.startswith("/static/"):
+            relative = path[len("/static/"):]
+            if relative not in {"app.js", "style.css"}:
+                return self._json(404, {"error": "not found"})
+            return self._file(FRONTEND / relative)
+        return self._json(404, {"error": "not found"})
+
+    def do_POST(self):
+        parsed = urlparse(self.path)
+        try:
+            body = self._read_body()
+        except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            return self._json(400, {"ok": False, "error": str(exc)})
+
+        if not isinstance(body, dict):
+            return self._json(400, {"ok": False, "error": "JSON object required"})
+        if parsed.path == "/api/chat":
+            message = str(body.get("message") or body.get("text") or "")[:12000]
+            return self._json(200, ORCH.handle(message))
+        if parsed.path == "/api/tasks":
+            try:
+                item = STORE.add_task(str(body.get("title") or ""), str(body.get("details") or "")[:4000])
+                return self._json(201, item)
+            except ValueError as exc:
+                return self._json(400, {"error": str(exc)})
+        if parsed.path == "/api/memory":
+            try:
+                item = STORE.add_memory(str(body.get("content") or ""), str(body.get("tags") or "")[:500])
+                return self._json(201, item)
+            except ValueError as exc:
+                return self._json(400, {"error": str(exc)})
+        if parsed.path == "/api/obsidian/read":
+            try:
+                content = OBSIDIAN.read_note(str(body.get("path") or ""))
+                return self._json(200, {"ok": True, "content": content})
+            except Exception as exc:
+                return self._json(400, {"ok": False, "error": str(exc)})
+        if parsed.path == "/api/obsidian/write":
+            try:
+                result = OBSIDIAN.write_note(
+                    str(body.get("path") or ""),
+                    str(body.get("content") or ""),
+                    append=bool(body.get("append")),
+                )
+                return self._json(200, result)
+            except Exception as exc:
+                return self._json(400, {"ok": False, "error": str(exc)})
+        if parsed.path == "/api/obsidian/search":
+            try:
+                results = OBSIDIAN.search(str(body.get("query") or "")[:200])
+                return self._json(200, {"ok": True, "results": results})
+            except Exception as exc:
+                return self._json(400, {"ok": False, "error": str(exc)})
+        return self._json(404, {"error": "not found"})
+
+    def do_PATCH(self):
+        match = re.fullmatch(r"/api/tasks/([0-9a-fA-F-]{36})", urlparse(self.path).path)
+        if not match:
+            return self._json(404, {"error": "not found"})
+        item = STORE.toggle_task(match.group(1))
+        if item is None:
+            return self._json(404, {"error": "task not found"})
+        return self._json(200, item)
+
+    def do_DELETE(self):
+        match = re.fullmatch(r"/api/tasks/([0-9a-fA-F-]{36})", urlparse(self.path).path)
+        if not match:
+            return self._json(404, {"error": "not found"})
+        if not STORE.delete_task(match.group(1)):
+            return self._json(404, {"error": "task not found"})
+        return self._json(200, {"deleted": True})
+
 
 def main():
-    host = SETTINGS.get("server", {}).get("host", "127.0.0.1")
+    host = str(SETTINGS.get("server", {}).get("host", "127.0.0.1"))
     port = int(SETTINGS.get("server", {}).get("port", 8765))
-    if not CONFIG_PATH.exists():
-        print(f"[JARVIS] Using example config. Copy to {CONFIG_PATH} and set API key.")
+    if host not in {"127.0.0.1", "localhost"}:
+        raise SystemExit("[JARVIS] Refusing non-local bind. Use 127.0.0.1 or localhost.")
+    if not 1 <= port <= 65535:
+        raise SystemExit("[JARVIS] Invalid port in config.")
     httpd = ThreadingHTTPServer((host, port), Handler)
     print(f"[JARVIS] http://{host}:{port}")
-    print(f"[JARVIS] Obsidian mode: {SETTINGS.get('obsidian', {}).get('mode')}")
+    print(f"[JARVIS] Database: {DATA_PATH}")
+    print(f"[JARVIS] Obsidian mode: {SETTINGS.get('obsidian', {}).get('mode', 'rest')}")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
-        print("\n[JARVIS] shutdown")
+        print("\n[JARVIS] Shutting down.")
+    finally:
+        httpd.server_close()
 
 
 if __name__ == "__main__":
