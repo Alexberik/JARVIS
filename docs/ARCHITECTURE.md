@@ -1,26 +1,32 @@
 # JARVIS architecture
 
-## Deployment
-- Local Windows runtime: database, local integrations, Obsidian, optional offline voice and desktop adapters.
-- Browser cockpit: chat, tasks, memory, approvals, and system status.
-- Cloud AI provider: optional; send only the data required by the user's request.
-- Remote access: deferred until authentication, TLS, CSRF protection, origin restrictions, rate limits, and audit logging exist.
+## Current runtime
+- Windows launcher: `start.bat`.
+- Local HTTP server: `backend/server.py` (Python standard library).
+- Browser cockpit: `frontend/`.
+- SQLite store: `backend/storage.py` → `data/jarvis.db` (tasks, memory entries, audit events).
+- Obsidian adapter: `backend/obsidian_client.py` (Local REST API or filesystem mode).
+- Rule-based command router: `backend/orchestrator.py`.
 
-## Layers
-1. Interface: browser cockpit and voice input/output.
-2. Orchestrator: resolves intent, selects tools, checks permissions, verifies outcomes.
-3. Policy engine: deny-by-default tool registry and action-specific approvals.
-4. Adapters: Obsidian, OpenAI-compatible APIs, Google Workspace, MCP, n8n, browser and desktop automation.
-5. Storage: SQLite operational state and Markdown knowledge in Obsidian.
+## Data boundaries
+- SQLite tasks are the single source for tasks shown in the cockpit and handled by chat commands.
+- SQLite memory entries are local operational memory for the cockpit.
+- Markdown files under `JARVIS/` are the human-readable knowledge base, project notes, inbox, log, and curated memory.
+- Obsidian API credentials remain in ignored `config/settings.json`.
+- Personal vault settings and root-level personal folders are not committed.
 
-## Memory
-- Working state: active conversation and pending approvals.
-- Operational memory: tasks, reminders, tool runs, metadata in SQLite.
-- Knowledge memory: Markdown notes in the Obsidian vault.
-- Secrets: separate from all memory stores.
+## Local API
+- Binds only to `127.0.0.1` or `localhost`.
+- Rejects unexpected Host headers.
+- Serves only the known frontend assets.
+- No permissive cross-origin access is enabled.
+- Request bodies are limited to 1 MB.
+- Note paths are validated to prevent traversal outside the vault.
 
-## Voice
-Initial browser speech APIs where supported; sherpa-onnx is the offline ASR candidate and Piper is the offline TTS candidate. Voice models are installed separately and are never committed to Git.
+## Planned adapters
+OpenAI-compatible LLM, Gmail/Google Calendar OAuth, MCP, n8n, sherpa-onnx, Piper, browser automation, and desktop automation are not part of the current working baseline. Add each behind an explicit permission policy and test before marking it connected.
 
-## Automation boundaries
-PyAutoGUI and browser-use are optional adapters, not the orchestration core. They require isolated contexts, narrow allow-lists, and fresh approvals for sensitive actions. No unrestricted terminal execution.
+## Permission boundaries
+- Local task and memory operations are available in the local cockpit.
+- Obsidian note read/search/write is available only after configuring the local plugin key.
+- Email sending, calendar writes, social publishing, purchases, financial actions, shell execution, desktop control, and remote access are not enabled in this baseline.
