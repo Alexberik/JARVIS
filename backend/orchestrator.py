@@ -19,7 +19,7 @@ class Orchestrator:
         self.settings = settings
         self.store = store
         notes = (settings.get("obsidian") or {}).get("notes") or {}
-        self.tasks_path = notes.get("tasks") or "JARVIS/Tasks.md"
+        self.tasks_path = notes.get("tasks") or "Tasks.md"
         self.handlers: list[tuple[re.Pattern, Callable]] = [
             (re.compile(r"(статус|status|ping|подключ)", re.I), self._status),
             (re.compile(r"(список|list).*(замет|note|файл|file|vault)", re.I), self._list_notes),
@@ -63,7 +63,7 @@ class Orchestrator:
             "reply": (
                 "Команда не распознана. Пока без LLM — только правила.\n"
                 "Примеры: статус, погода, задачи, добавь задачу …, "
-                "найди …, запиши в JARVIS/Log.md: текст, помощь."
+                "найди …, запиши в Log.md: текст, помощь."
             ),
             "tool": None,
         }
