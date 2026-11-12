@@ -44,7 +44,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def _host_allowed(self) -> bool:
         host = (self.headers.get("Host") or "").lower()
-        return host in {"127.0.0.1:8765", "localhost:8765", "127.0.0.1", "localhost"}
+        port = int(SETTINGS.get("server", {}).get("port", 8765))
+        return host in {f"127.0.0.1:{port}", f"localhost:{port}", "127.0.0.1", "localhost"}
 
     def _json(self, code: int, data):
         payload = json.dumps(data, ensure_ascii=False).encode("utf-8")
