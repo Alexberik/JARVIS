@@ -13,5 +13,14 @@ logs/
 *.log
 config/settings.json
 models/
+.obsidian/
+inbox/
+memory/
+tasks/
+Log.md
+Tasks.md
+06 - Security Rules.md
+*.base
+*.canvas
 .DS_Store
 Thumbs.db
