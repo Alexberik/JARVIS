@@ -1,20 +1,47 @@
 # Setup on Windows
 
-## Target folder
-`C:\Users\Admin\JARVIS`
+## Repository and runtime
 
-## Clone repository
-If this folder is empty, open PowerShell and run:
+Repository: `C:\Users\Admin\JARVIS`
+
+Start the local JARVIS service from PowerShell in the repository root:
 
 ```powershell
-cd C:\Users\Admin
-git clone https://github.com/Alexberik/JARVIS.git
+.\start.bat
 ```
 
-If the folder already exists and contains files, back it up first. Do not overwrite it blindly. Then initialize or connect Git in that folder using the commands in the repository README.
+Open the web cockpit at http://127.0.0.1:8765.
 
-## Open in Obsidian
-In Obsidian choose **Open folder as vault** and select `C:\Users\Admin\JARVIS\obsidian-vault` to open the project knowledge base. Alternatively open the project root and keep notes in the subfolder.
+## Open the correct Obsidian vault
 
-## Python setup
-See the root README for the start commands. Keep `.env` local and private.
+The active JARVIS vault is the nested folder:
+
+`C:\Users\Admin\JARVIS\JARVIS`
+
+In Obsidian choose **Open another vault → Open folder as vault** and select that exact folder. The note `00 - Home.md` is the dashboard and navigation page.
+
+Do not open the repository root or the legacy `obsidian-vault` documentation folder as the active knowledge vault. The repository root contains application code; `obsidian-vault` contains project documentation.
+
+## Connect JARVIS to Obsidian
+
+The default integration uses filesystem mode and does not require a community plugin. In the repository root, create the local settings file if it does not exist:
+
+```powershell
+if (!(Test-Path config\settings.json)) {
+  Copy-Item config\settings.example.json config\settings.json
+}
+notepad config\settings.json
+```
+
+The Obsidian section should contain:
+
+```json
+"mode": "filesystem",
+"filesystem": { "vault_path": "JARVIS" }
+```
+
+Save the file and restart JARVIS. The dashboard should report Obsidian as connected.
+
+## Privacy
+
+Keep `config/settings.json`, `.obsidian/`, the SQLite database, API keys, and OAuth tokens local. Never commit secrets or expose the local JARVIS server to the public internet.
