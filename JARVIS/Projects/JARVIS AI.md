@@ -21,7 +21,7 @@
 - [ ] Offline STT/TTS
 
 ## Ссылки
-- [[../00 - Home|Главная]]
-- [[../Workflows/Command Reference|Команды]]
-- [[../Workflows/Integrations|Интеграции]]
-- [[../Workflows/Security|Безопасность]]
+- [[00 - Home|Главная]]
+- [[Workflows/Command Reference|Команды]]
+- [[Workflows/Integrations|Интеграции]]
+- [[Workflows/Security|Безопасность]]
