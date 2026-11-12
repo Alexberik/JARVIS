@@ -14,9 +14,10 @@ from .tools.system_info import time_tool, help_catalog
 
 
 class Orchestrator:
-    def __init__(self, obsidian: ObsidianClient, settings: dict):
+    def __init__(self, obsidian: ObsidianClient, settings: dict, store=None):
         self.obsidian = obsidian
         self.settings = settings
+        self.store = store
         notes = (settings.get("obsidian") or {}).get("notes") or {}
         self.tasks_path = notes.get("tasks") or "JARVIS/Tasks.md"
         self.handlers: list[tuple[re.Pattern, Callable]] = [
@@ -141,10 +142,22 @@ class Orchestrator:
         return weather_tool(city=city)
 
     def _task_list(self, m, text):
+        if self.store is not None:
+            items = self.store.list_tasks()
+            if not items:
+                return {"reply": "Список задач пуст. Скажи: добавь задачу …", "tool": "tasks.list", "data": []}
+            lines = [f"- [{'x' if item['done'] else ' '}] {item['title']}" for item in items[:50]]
+            return {"reply": "Задачи:\\n" + "\\n".join(lines), "tool": "tasks.list", "data": items}
         return tasks_tool(action="list", obsidian=self.obsidian, path=self.tasks_path)
 
     def _task_add(self, m, text):
         item = m.group(2).strip() if m.lastindex >= 2 else ""
+        if self.store is not None:
+            try:
+                task = self.store.add_task(item)
+                return {"reply": f"Задача добавлена: {task['title']}", "tool": "tasks.add", "data": task}
+            except ValueError as exc:
+                return {"reply": str(exc), "tool": "tasks.add", "error": str(exc)}
         return tasks_tool(action="add", text=item, obsidian=self.obsidian, path=self.tasks_path)
 
     def _time(self, m, text):
