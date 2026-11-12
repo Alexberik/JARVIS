@@ -60,9 +60,17 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, OBSIDIAN.status())
         if path in ("/", "/index.html"):
             return self._file(FRONTEND / "index.html")
-        rel = path.lstrip("/")
+
+        # The frontend references /static/style.css and /static/app.js.
+        # Map /static/* to files directly inside frontend/ (not frontend/static/).
+        if path.startswith("/static/"):
+            rel = path[len("/static/"):]
+        else:
+            rel = path.lstrip("/")
+
         candidate = (FRONTEND / rel).resolve()
-        if str(candidate).startswith(str(FRONTEND.resolve())) and candidate.is_file():
+        frontend_root = FRONTEND.resolve()
+        if candidate.is_relative_to(frontend_root) and candidate.is_file():
             return self._file(candidate)
         self._json(404, {"error": "not found"})
 
@@ -107,6 +115,8 @@ class Handler(BaseHTTPRequestHandler):
     def _file(self, path: Path):
         data = path.read_bytes()
         ctype = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
+        if ctype.startswith("text/") or ctype in ("application/javascript", "application/json"):
+            ctype += "; charset=utf-8"
         self.send_response(200)
         self._cors()
         self.send_header("Content-Type", ctype)
