@@ -44,13 +44,14 @@ git pull --ff-only origin main
 - Голосовой ввод браузера в Chrome/Edge, если SpeechRecognition доступен.
 - Чтение, поиск и запись заметок через Obsidian Local REST API.
 
-## Подключение Obsidian
+## Подключение Obsidian — без дополнительных плагинов
 
-1. Открой Obsidian Desktop и нужный vault. Для этой конфигурации корень репозитория `C:\Users\Admin\JARVIS` может быть открыт как vault.
-2. Settings → Community plugins → Browse.
-3. Установи и включи **Local REST API**.
-4. В настройках плагина скопируй локальный URL и API key.
-5. В PowerShell из корня репозитория выполни:
+**Рабочий vault JARVIS — это папка `C:\Users\Admin\JARVIS\JARVIS`.** Не открывай как рабочий vault корень репозитория и не выбирай старую папку `obsidian-vault`: там лежит документация проекта, а не актуальная база заметок.
+
+1. В Obsidian выбери **Open another vault → Open folder as vault**.
+2. Укажи папку `C:\Users\Admin\JARVIS\JARVIS`.
+3. Открой заметку `00 - Home.md`. Из неё доступны Inbox, Tasks, Memory, Log, Projects и Workflows.
+4. В корне репозитория проверь локальную конфигурацию:
 
 ```powershell
 if (!(Test-Path config\settings.json)) {
@@ -59,10 +60,20 @@ if (!(Test-Path config\settings.json)) {
 notepad config\settings.json
 ```
 
-6. В `config/settings.json` проверь `obsidian.mode = "rest"`, укажи URL плагина (обычно `https://127.0.0.1:27124`) и вставь ключ в `obsidian.rest.api_key`.
-7. Сохрани файл и перезапусти JARVIS.
+5. В секции `obsidian` должны быть значения:
 
-**Никогда не отправляй API key в чат, не помещай его в заметки и не загружай в GitHub.** Файл `config/settings.json`, база данных и локальные папки пользователя исключены из Git. Не публикуй порт REST API или JARVIS в интернете.
+```json
+"mode": "filesystem",
+"filesystem": { "vault_path": "JARVIS" }
+```
+
+Путь `JARVIS` разрешается относительно корня проекта. Сохрани настройки и перезапусти JARVIS. Веб-панель должна показать, что Obsidian подключён.
+
+### Дополнительный вариант: Obsidian Local REST API
+
+REST API не требуется для базового подключения через файловую систему. Его можно настроить отдельно, если понадобится работа через плагин Obsidian: установи **Local REST API**, укажи `mode = rest`, URL и API key в локальном `config/settings.json`.
+
+**Никогда не отправляй API key в чат, не помещай его в заметки и не загружай в GitHub.** Файл `config/settings.json`, база данных и локальные настройки Obsidian исключены из Git. Не публикуй порт REST API или JARVIS в интернете.
 
 ## Структура Obsidian
 
