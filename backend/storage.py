@@ -17,12 +17,12 @@ class Store:
     def connect(self) -> sqlite3.Connection:
         con = sqlite3.connect(self.path, timeout=10)
         con.row_factory = sqlite3.Row
-        con.execute("PRAGMA journal_mode=WAL")
         con.execute("PRAGMA foreign_keys=ON")
         return con
 
     def initialize(self) -> None:
         with self.connect() as con:
+            con.execute("PRAGMA journal_mode=WAL")
             con.executescript("""
                 CREATE TABLE IF NOT EXISTS tasks (
                     id TEXT PRIMARY KEY,
@@ -67,6 +67,8 @@ class Store:
         title = title.strip()
         if not title:
             raise ValueError("Task title is required")
+        if len(title) > 240 or len(details) > 4000:
+            raise ValueError("Task title/details exceed the allowed length")
         item = {
             "id": str(uuid.uuid4()), "title": title, "details": details,
             "done": 0, "created_at": self.now(),
@@ -117,6 +119,8 @@ class Store:
         content = content.strip()
         if not content:
             raise ValueError("Memory content is required")
+        if len(content) > 12000 or len(tags) > 500:
+            raise ValueError("Memory content/tags exceed the allowed length")
         item = {"id": str(uuid.uuid4()), "content": content, "tags": tags, "created_at": self.now()}
         with self.connect() as con:
             con.execute(
