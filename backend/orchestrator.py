@@ -147,7 +147,7 @@ class Orchestrator:
             if not items:
                 return {"reply": "Список задач пуст. Скажи: добавь задачу …", "tool": "tasks.list", "data": []}
             lines = [f"- [{'x' if item['done'] else ' '}] {item['title']}" for item in items[:50]]
-            return {"reply": "Задачи:\\n" + "\\n".join(lines), "tool": "tasks.list", "data": items}
+            return {"reply": "Задачи:\n" + "\n".join(lines), "tool": "tasks.list", "data": items}
         return tasks_tool(action="list", obsidian=self.obsidian, path=self.tasks_path)
 
     def _task_add(self, m, text):
