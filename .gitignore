@@ -11,5 +11,7 @@ data/*
 *.sqlite*
 logs/
 *.log
+config/settings.json
+models/
 .DS_Store
 Thumbs.db
