@@ -9,10 +9,10 @@
     },
     "filesystem": { "vault_path": "JARVIS" },
     "notes": {
-      "log": "JARVIS/Log.md",
-      "inbox": "JARVIS/Inbox.md",
-      "tasks": "JARVIS/Tasks.md",
-      "memory": "JARVIS/Memory.md"
+      "log": "Log.md",
+      "inbox": "Inbox.md",
+      "tasks": "Tasks.md",
+      "memory": "Memory.md"
     }
   },
   "llm": {
