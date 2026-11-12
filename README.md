@@ -1,62 +1,113 @@
 # JARVIS AI
 
-Local-first personal assistant for Windows: browser cockpit, Obsidian bridge, rule-based command router, and a modular foundation for voice and future AI integrations.
+Локальный персональный ассистент для Windows: веб-панель, задачи и долговременная память в SQLite, интеграция с Obsidian и модульная основа для голосовых и AI-функций.
 
-## Current working entry point
+## Быстрый запуск Windows
 
-Use the included Windows launcher:
+Требуется Python 3.10 или новее и Git.
+
+1. Открой PowerShell в папке проекта.
+2. Обнови проект по инструкции в разделе **Обновление существующей установки**.
+3. Запусти:
 
 ```powershell
 .\start.bat
 ```
 
-Then open http://127.0.0.1:8765.
+4. Открой http://127.0.0.1:8765.
 
-The launcher starts `backend/server.py` (Python standard library; no pip packages are required for this entry point). Keep the server window open while using JARVIS.
+Окно терминала должно оставаться открытым. Для остановки нажми Ctrl+C.
 
-## Connect Obsidian
+Текущий запуск использует только стандартную библиотеку Python. Установка пакетов через pip для базового режима не требуется.
 
-1. Open Obsidian Desktop and keep your vault open.
-2. In Obsidian, open Settings → Community plugins → Browse.
-3. Install and enable **Local REST API**.
-4. Open Settings → Local REST API and copy the API key shown there.
-5. In the repository, copy the example settings file:
+## Обновление существующей установки
+
+Если в папке есть локальные изменения, сначала посмотри `git status -sb`. Не используй `git reset --hard` или `git clean` для обновления личного vault.
+
+Для штатного обновления чистой рабочей копии:
 
 ```powershell
-Copy-Item config\settings.example.json config\settings.json
+git pull --ff-only origin main
+```
+
+Если Git сообщает о локальных изменениях, остановись и сохрани их осознанно — не удаляй их командами очистки.
+
+## Что работает в текущей версии
+
+- Веб-панель с тёмной темой.
+- Локальный HTTP-сервер на `127.0.0.1:8765`.
+- Проверка состояния ядра и Obsidian.
+- Создание, просмотр, завершение и удаление задач.
+- Сохранение и просмотр записей долговременной памяти.
+- SQLite-хранилище в `data/jarvis.db`.
+- Командный маршрутизатор: статус, заметки, поиск, погода, задачи, дата/время и помощь.
+- Голосовой ввод браузера в Chrome/Edge, если SpeechRecognition доступен.
+- Чтение, поиск и запись заметок через Obsidian Local REST API.
+
+## Подключение Obsidian
+
+1. Открой Obsidian Desktop и нужный vault. Для этой конфигурации корень репозитория `C:\Users\Admin\JARVIS` может быть открыт как vault.
+2. Settings → Community plugins → Browse.
+3. Установи и включи **Local REST API**.
+4. В настройках плагина скопируй локальный URL и API key.
+5. В PowerShell из корня репозитория выполни:
+
+```powershell
+if (!(Test-Path config\settings.json)) {
+  Copy-Item config\settings.example.json config\settings.json
+}
 notepad config\settings.json
 ```
 
-6. In `config/settings.json`, keep `obsidian.mode` set to `rest`, set `obsidian.rest.base_url` to the exact local URL shown by the plugin (normally `https://127.0.0.1:27124`), and paste the key into `obsidian.rest.api_key`.
-7. Save the file and restart JARVIS.
+6. В `config/settings.json` проверь `obsidian.mode = "rest"`, укажи URL плагина (обычно `https://127.0.0.1:27124`) и вставь ключ в `obsidian.rest.api_key`.
+7. Сохрани файл и перезапусти JARVIS.
 
-**Never send the API key in chat, notes, screenshots, or GitHub.** The local `config/settings.json` is now ignored by Git. Do not expose the Obsidian API or JARVIS server to the public internet.
+**Никогда не отправляй API key в чат, не помещай его в заметки и не загружай в GitHub.** Файл `config/settings.json`, база данных и локальные папки пользователя исключены из Git. Не публикуй порт REST API или JARVIS в интернете.
 
-## Current capabilities and limits
+## Структура Obsidian
 
-- Browser cockpit with dark graphite/cyan styling.
-- Local Obsidian status, note read/write, and search through the Local REST API bridge.
-- Rule-based commands for status, notes, weather, tasks, and time.
-- Browser speech input where supported.
-- Voice engines (sherpa-onnx and Piper) are scaffolding only; model files and runtime wiring are not yet complete.
-- Gmail, Google Calendar, social publishing, unrestricted desktop control, and a full MCP client are not connected in this baseline.
-- The current `start.bat` runtime does not yet use GPT/Ollama for free-form chat. The separate FastAPI `backend/main.py` entry point is an experimental alternative and is not the recommended launcher yet.
+В корне репозитория находится каталог `JARVIS/` с рабочими заметками:
 
-## Project layout
+- `00 - Home.md` — домашняя панель и навигация.
+- `Log.md` — журнал действий и событий.
+- `Inbox.md` — быстрый захват идей.
+- `Tasks.md` — задачи в формате Obsidian checklist.
+- `Memory.md` — долговременные заметки и факты.
+- `Projects/` — проекты.
+- `Workflows/` — сценарии и инструкции.
+- `Templates/` — шаблоны заметок.
 
-- `backend/server.py` — current local HTTP server and frontend asset routing.
-- `backend/obsidian_client.py` — Obsidian REST/filesystem adapter.
-- `backend/orchestrator.py` — rule-based command router.
-- `backend/tools/` — local tools.
-- `backend/voice/` — voice pipeline scaffold.
-- `frontend/` — browser interface, styles, and JavaScript.
-- `config/settings.example.json` — safe configuration template.
-- `config/settings.json` — local configuration; do not commit.
-- `obsidian-vault/` and `docs/obsidian/` — project documentation notes.
+Папки `inbox/`, `memory/`, `tasks/` в корне, а также `.obsidian/` — личные локальные данные пользователя; они не синхронизируются в публичный GitHub. Операционная память и задачи интерфейса JARVIS отдельно хранятся в локальной SQLite базе.
 
-## Security
+## Ограничения текущей версии
 
-- Bind local services to `127.0.0.1`.
-- Never commit API keys, OAuth tokens, private notes, databases, or logs.
-- External side effects must require explicit approval.
-- Shell execution, public remote access, financial actions, and destructive file operations remain disabled until separately secured and tested.
+- Свободный GPT-диалог ещё не подключён к текущему серверу `start.bat`. Поле чата пока обрабатывает поддерживаемые команды и возвращает подсказку для неизвестных запросов.
+- OpenAI API, Gmail, Google Calendar, социальные сети и полноценный MCP-клиент не подключены.
+- Голосовой ввод использует браузерный SpeechRecognition. Офлайн-движки sherpa-onnx и Piper пока являются заготовкой.
+- Автоматизация браузера и рабочего стола, выполнение shell-команд, финансовые операции и удалённый доступ отключены.
+
+## Разработка и проверка
+
+Из корня репозитория:
+
+```powershell
+python -m compileall backend
+python -m unittest discover -s tests -v
+python backend\server.py
+```
+
+Проверка API после запуска:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8765/api/health
+Invoke-RestMethod http://127.0.0.1:8765/api/tasks
+Invoke-RestMethod http://127.0.0.1:8765/api/memory
+```
+
+## Безопасность
+
+- Сервис отказывается запускаться на внешнем сетевом интерфейсе.
+- Секреты и локальная база не коммитятся.
+- Неизвестные инструменты запрещены по умолчанию.
+- Внешние действия требуют отдельного подтверждения.
+- Не включай удалённый доступ без аутентификации, TLS, защиты от CSRF, ограничения запросов и аудита.
