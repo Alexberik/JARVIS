@@ -31,8 +31,8 @@ def load_settings() -> dict:
 
 SETTINGS = load_settings()
 OBSIDIAN = ObsidianClient(SETTINGS.get("obsidian", {}))
-ORCH = Orchestrator(OBSIDIAN, SETTINGS)
 STORE = Store(DATA_PATH)
+ORCH = Orchestrator(OBSIDIAN, SETTINGS, STORE)
 MAX_BODY = 1_000_000
 
 
