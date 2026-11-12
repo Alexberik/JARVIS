@@ -30,7 +30,13 @@ def load_settings() -> dict:
 
 
 SETTINGS = load_settings()
-OBSIDIAN = ObsidianClient(SETTINGS.get("obsidian", {}))
+# Resolve a relative vault path against the repository, not the shell's current directory.
+obsidian_settings = SETTINGS.setdefault("obsidian", {})
+filesystem_settings = obsidian_settings.setdefault("filesystem", {})
+vault_path = str(filesystem_settings.get("vault_path") or "").strip()
+if vault_path and not Path(vault_path).is_absolute():
+    filesystem_settings["vault_path"] = str((ROOT / vault_path).resolve())
+OBSIDIAN = ObsidianClient(obsidian_settings)
 STORE = Store(DATA_PATH)
 ORCH = Orchestrator(OBSIDIAN, SETTINGS, STORE)
 MAX_BODY = 1_000_000
@@ -99,7 +105,7 @@ class Handler(BaseHTTPRequestHandler):
             query = parse_qs(parsed.query).get("q", [""])[0][:200]
             return self._json(200, STORE.list_memories(query))
         if path == "/api/audit":
-            with STORE.connect() as con:
+            with STORE.connection() as con:
                 rows = con.execute(
                     "SELECT event,details,created_at FROM audit_log ORDER BY created_at DESC LIMIT 100"
                 ).fetchall()
