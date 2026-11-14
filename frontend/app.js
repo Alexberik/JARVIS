@@ -2,6 +2,10 @@ const $ = (selector) => document.querySelector(selector);
 const activity = [];
 let recognition = null;
 let listening = false;
+let handsFreeEnabled = false;
+let processingVoice = false;
+let commandArmedUntil = 0;
+let voiceRestartTimer = null;
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -54,19 +58,31 @@ function setCore(mode, caption) {
   $("#coreCaption").textContent = caption || (mode === "standby" ? "AWAITING YOUR COMMAND" : "JARVIS IS ACTIVE");
 }
 
-function speak(text) {
-  if (!$("#speakReplies").checked || !("speechSynthesis" in window)) return;
+function speak(text, onDone) {
+  if (!$("#speakReplies").checked || !("speechSynthesis" in window)) return false;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(String(text).slice(0, 1800));
   utterance.lang = "ru-RU";
   utterance.rate = 1;
   const voice = window.speechSynthesis.getVoices().find(v => v.lang.toLowerCase().startsWith("ru"));
   if (voice) utterance.voice = voice;
+  utterance.onend = () => { if (onDone) onDone(); };
+  utterance.onerror = () => { if (onDone) onDone(); };
   window.speechSynthesis.speak(utterance);
+  return true;
+}
+
+function resumeVoice() {
+  processingVoice = false;
+  if (!handsFreeEnabled || !SpeechRecognition) return;
+  clearTimeout(voiceRestartTimer);
+  voiceRestartTimer = setTimeout(startRecognition, 650);
 }
 
 async function sendCommand(message, source = "text") {
   if (!message.trim()) return;
+  const fromVoice = source === "voice";
+  if (fromVoice) processingVoice = true;
   addMessage(message, "user");
   logActivity("COMMAND RECEIVED · " + message.slice(0, 90));
   setCore("working", "ANALYZING REQUEST");
@@ -74,13 +90,15 @@ async function sendCommand(message, source = "text") {
     const result = await api("/api/chat", {method:"POST", body:JSON.stringify({message})});
     const reply = result.reply || result.message || JSON.stringify(result);
     addMessage(reply);
-    logActivity("COMMAND PROCESSED");
-    speak(reply);
+    logActivity("COMMAND PROCESSED" + (result.tool ? " · " + result.tool : ""));
+    const voiceStarted = speak(reply, fromVoice ? resumeVoice : undefined);
+    if (fromVoice && !voiceStarted) resumeVoice();
     setCore("standby", "AWAITING YOUR COMMAND");
   } catch (error) {
     addMessage("System error: " + error.message);
     logActivity("REQUEST FAILED · " + error.message, "error");
     setCore("error", "CHECK ACTIVITY LOG");
+    if (fromVoice) resumeVoice();
   }
 }
 
@@ -191,53 +209,105 @@ $("#chatform").addEventListener("submit", async event => {
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 const canSpeak = "speechSynthesis" in window;
+
+function startRecognition() {
+  if (!SpeechRecognition || !handsFreeEnabled || listening || processingVoice) return;
+  recognition = new SpeechRecognition();
+  recognition.lang = "ru-RU";
+  recognition.interimResults = false;
+  recognition.continuous = true;
+  recognition.maxAlternatives = 1;
+  recognition.onstart = () => {
+    listening = true;
+    $("#voice").classList.add("recording");
+    $("#recognitionStatus").textContent = "WAITING FOR «ДЖАРВИС»";
+    setCore("listening", "WAKE WORD ACTIVE");
+  };
+  recognition.onresult = event => {
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      if (!event.results[i].isFinal) continue;
+      const heard = event.results[i][0].transcript.trim();
+      if (!heard) continue;
+      const wake = heard.match(/(?:джарвис|jarvis)[,\\s.!?—-]*(.*)/i);
+      if (wake) {
+        const command = (wake[1] || "").trim();
+        commandArmedUntil = command ? 0 : Date.now() + 12000;
+        processingVoice = true;
+        recognition.stop();
+        if (command) {
+          sendCommand(command, "voice");
+        } else {
+          logActivity("WAKE WORD DETECTED");
+          speak("Слушаю.", resumeVoice);
+        }
+        return;
+      }
+      if (Date.now() < commandArmedUntil) {
+        commandArmedUntil = 0;
+        processingVoice = true;
+        recognition.stop();
+        sendCommand(heard, "voice");
+        return;
+      }
+    }
+  };
+  recognition.onerror = event => {
+    if (!["no-speech", "aborted"].includes(event.error)) {
+      $("#recognitionStatus").textContent = "MIC ERROR · " + event.error.toUpperCase();
+      logActivity("VOICE INPUT ERROR · " + event.error, "error");
+    }
+  };
+  recognition.onend = () => {
+    listening = false;
+    $("#voice").classList.toggle("recording", handsFreeEnabled);
+    if (!handsFreeEnabled) {
+      $("#recognitionStatus").textContent = "VOICE OFF";
+      setCore("standby", "AWAITING YOUR COMMAND");
+    } else if (!processingVoice) {
+      $("#recognitionStatus").textContent = "RECONNECTING MICROPHONE";
+      clearTimeout(voiceRestartTimer);
+      voiceRestartTimer = setTimeout(startRecognition, 900);
+    }
+  };
+  try {
+    recognition.start();
+  } catch (error) {
+    logActivity("MIC START FAILED · " + error.message, "error");
+    listening = false;
+    clearTimeout(voiceRestartTimer);
+    voiceRestartTimer = setTimeout(startRecognition, 1500);
+  }
+}
+
 if (!SpeechRecognition) {
   $("#voice").disabled = true;
   $("#voice").title = "Speech recognition is not supported in this browser";
   $("#recognitionStatus").textContent = "VOICE INPUT UNAVAILABLE";
+} else {
+  $("#recognitionStatus").textContent = "VOICE OFF · CLICK ONCE TO ACTIVATE";
 }
 $("#voice").addEventListener("click", () => {
   if (!SpeechRecognition) {
-    addMessage("Voice input is not supported in this browser. Please use a current version of Chrome or Edge.");
+    addMessage("Для голосового режима открой JARVIS в актуальном Chrome или Edge.");
     return;
   }
-  if (listening && recognition) { recognition.stop(); return; }
-  recognition = new SpeechRecognition();
-  recognition.lang = "ru-RU";
-  recognition.interimResults = true;
-  recognition.continuous = false;
-  recognition.onstart = () => {
-    listening = true;
-    $("#voice").classList.add("recording");
-    $("#recognitionStatus").textContent = "MIC ACTIVE";
-    setCore("listening", "SPEAK NOW");
-    logActivity("MICROPHONE ACTIVATED");
-  };
-  recognition.onresult = event => {
-    let finalText = "";
-    let interimText = "";
-    for (let i=event.resultIndex;i<event.results.length;i++) {
-      if (event.results[i].isFinal) finalText += event.results[i][0].transcript;
-      else interimText += event.results[i][0].transcript;
-    }
-    $("#message").value = finalText || interimText;
-    if (finalText.trim()) {
-      $("#message").value = "";
-      recognition.stop();
-      sendCommand(finalText.trim(), "voice");
-    }
-  };
-  recognition.onerror = event => {
-    $("#recognitionStatus").textContent = "MIC ERROR · " + event.error.toUpperCase();
-    logActivity("VOICE INPUT ERROR · " + event.error, "error");
-  };
-  recognition.onend = () => {
-    listening = false;
+  if (handsFreeEnabled) {
+    handsFreeEnabled = false;
+    processingVoice = false;
+    commandArmedUntil = 0;
+    clearTimeout(voiceRestartTimer);
+    if (recognition && listening) recognition.stop();
+    if (canSpeak) window.speechSynthesis.cancel();
     $("#voice").classList.remove("recording");
-    $("#recognitionStatus").textContent = "MIC STANDBY";
-    if ($("#coreStage").classList.contains("listening")) setCore("standby");
-  };
-  try { recognition.start(); } catch (error) { logActivity("MIC START FAILED · " + error.message, "error"); }
+    $("#recognitionStatus").textContent = "VOICE OFF";
+    logActivity("HANDS-FREE VOICE DISABLED");
+    return;
+  }
+  handsFreeEnabled = true;
+  commandArmedUntil = 0;
+  $("#recognitionStatus").textContent = "REQUESTING MICROPHONE";
+  logActivity("HANDS-FREE VOICE ACTIVATION REQUESTED");
+  startRecognition();
 });
 
 $("#speakReplies").addEventListener("change", () => {
