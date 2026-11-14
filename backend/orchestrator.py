@@ -129,6 +129,27 @@ class Orchestrator:
                 "error": str(exc)[:300],
             }
 
+    def llm_status(self) -> dict[str, Any]:
+        cfg = self.settings.get("llm") or {}
+        provider = str(cfg.get("provider") or "none").lower()
+        model = str(cfg.get("model") or "llama3.2")
+        if provider != "ollama":
+            return {"ok": False, "provider": provider, "model": model, "reason": "provider_not_configured"}
+        base = str(cfg.get("ollama_base") or "http://127.0.0.1:11434").rstrip("/")
+        try:
+            request = urllib.request.Request(base + "/api/tags", method="GET")
+            with urllib.request.urlopen(request, timeout=2) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            names = [str(item.get("name") or "") for item in data.get("models", [])]
+            installed = any(name == model or name.startswith(model + ":") for name in names)
+            return {
+                "ok": installed, "provider": provider, "model": model,
+                "installed_models": names[:30],
+                "reason": "ready" if installed else "model_not_downloaded",
+            }
+        except Exception as exc:
+            return {"ok": False, "provider": provider, "model": model, "reason": str(exc)[:200]}
+
     def _status(self, m, text):
         st = self.obsidian.status()
         voice = (self.settings.get("voice") or {}).get("enabled")
