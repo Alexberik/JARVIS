@@ -228,7 +228,7 @@ function startRecognition() {
       if (!event.results[i].isFinal) continue;
       const heard = event.results[i][0].transcript.trim();
       if (!heard) continue;
-      const wake = heard.match(/(?:джарвис|jarvis)[,\\s.!?—-]*(.*)/i);
+      const wake = heard.match(/(?:джарвис|jarvis)[,\s.!?—-]*(.*)/i);
       if (wake) {
         const command = (wake[1] || "").trim();
         commandArmedUntil = command ? 0 : Date.now() + 12000;
