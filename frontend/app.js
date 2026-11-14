@@ -31,7 +31,7 @@ function logActivity(message, kind = "info") {
     line.append(mark, document.createTextNode(item.stamp + " " + item.message));
     target.append(line);
   }
-  $("#activityCount").textContent = activity.length + " live";
+  $("#activityCount").textContent = activity.length + " events";
 }
 
 function addMessage(text, kind = "jarvis") {
@@ -245,6 +245,31 @@ $("#speakReplies").addEventListener("change", () => {
 });
 $("#speakRepliesAlt").addEventListener("change", event => { $("#speakReplies").checked = event.target.checked; });
 
+async function refreshAudit() {
+  try {
+    const events = await api("/api/audit");
+    activity.length = 0;
+    for (const event of [...events].reverse()) {
+      const stamp = event.created_at ? new Date(event.created_at).toLocaleTimeString("ru-RU", {hour12:false}) : "--:--:--";
+      activity.unshift({stamp, message: [event.event, event.details].filter(Boolean).join(" · "), kind:"info"});
+    }
+    activity.splice(12);
+    const target = $("#activityLog");
+    target.replaceChildren();
+    for (const item of activity) {
+      const line = document.createElement("p");
+      const mark = document.createElement("span");
+      mark.className = "terminal-mark";
+      mark.textContent = "$";
+      line.append(mark, document.createTextNode(item.stamp + " " + item.message));
+      target.append(line);
+    }
+    $("#activityCount").textContent = activity.length + " events";
+  } catch (error) {
+    logActivity("AUDIT HISTORY UNAVAILABLE · " + error.message, "error");
+  }
+}
+
 async function refreshStatus() {
   try {
     const health = await api("/api/health");
@@ -262,22 +287,25 @@ async function refreshStatus() {
   try {
     const status = await api("/api/obsidian/status");
     const connected = Boolean(status.ok);
-    $("#diskMetric").textContent = connected ? "ONLINE" : "OFFLINE";
-    $("#diskBar").style.width = connected ? "100%" : "0%";
+    $("#vaultMetric").textContent = connected ? "ONLINE" : "OFFLINE";
+    $("#vaultBar").style.width = connected ? "100%" : "0%";
     $("#obsidianMode").textContent = connected ? (status.mode === "filesystem" ? "FILESYSTEM · ONLINE" : "REST API · ONLINE") : "NOT CONNECTED";
     $("#obsidianMode").style.color = connected ? "var(--cyan)" : "var(--gold)";
-    $("#inboxSummary").innerHTML = connected ? "Local vault connected.<br>Notes and knowledge access ready." : "Obsidian vault is not connected.<br>Check local configuration.";
-    $("#inboxState").textContent = connected ? "VAULT ONLINE" : "NOT CONNECTED";
     logActivity(connected ? "OBSIDIAN VAULT CONNECTED" : "OBSIDIAN VAULT NOT CONNECTED");
+    $("#inboxState").textContent = "NOT CONNECTED";
+    $("#inboxSummary").textContent = "Gmail is not connected. Inbox preview is unavailable until authorization.";
   } catch {
     $("#diskMetric").textContent = "UNKNOWN";
     $("#diskBar").style.width = "0%";
   }
   const voiceReady = Boolean(SpeechRecognition);
-  $("#memoryMetric").textContent = voiceReady ? "READY" : "LIMITED";
-  $("#memoryBar").style.width = voiceReady ? "100%" : "35%";
+  $("#voiceMetric").textContent = voiceReady ? "READY" : "LIMITED";
+  $("#voiceBar").style.width = voiceReady ? "100%" : "35%";
+  $("#inboxState").textContent = "NOT CONNECTED";
+  $("#inboxSummary").textContent = "Gmail is not connected. Inbox preview is unavailable until authorization.";
   $("#githubSummary").textContent = "GitHub connector is not connected. Repository activity is not being fetched.";
 }
 refreshStatus();
+refreshAudit();
 refreshTasks().catch(error => logActivity("TASKS UNAVAILABLE · " + error.message, "error"));
 logActivity(canSpeak ? "BROWSER SPEECH OUTPUT AVAILABLE" : "BROWSER SPEECH OUTPUT UNAVAILABLE");
