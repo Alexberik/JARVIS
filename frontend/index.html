@@ -3,79 +3,114 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#080d12">
-  <title>JARVIS — Personal AI System</title>
+  <meta name="theme-color" content="#03070b">
+  <title>J.A.R.V.I.S. — Personal AI Operating System</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <div class="shell">
-    <aside class="sidebar">
-      <div class="brand"><span class="orb"></span><div><b>JARVIS</b><small>PERSONAL AI SYSTEM</small></div></div>
-      <nav aria-label="Основная навигация">
-        <a class="active" href="#overview">Обзор</a>
-        <a href="#assistant">Ассистент</a>
-        <a href="#tasks">Задачи</a>
-        <a href="#memory">Память</a>
-        <a href="#connections">Интеграции</a>
-      </nav>
-      <div class="side-foot">LOCAL-FIRST · HYBRID READY<br><span id="health">Проверка ядра…</span></div>
-    </aside>
-    <main id="overview">
-      <header>
-        <div><p class="eyebrow">PERSONAL COMMAND CENTER</p><h1>JARVIS</h1><p class="muted">Персональный центр управления, знаний и голосовых команд.</p></div>
-        <div class="status"><i></i> LOCAL CORE</div>
-      </header>
+  <div class="frame">
+    <div class="top-ticks" aria-hidden="true"></div>
+    <header class="topbar">
+      <a class="brand" href="#home" aria-label="JARVIS home"><span class="brand-icon">✺</span></a>
+      <div class="tagline">JUST A RATHER VERY INTELLIGENT SYSTEM</div>
+      <div class="top-status"><span class="pulse"></span><span id="topStatus">INITIALIZING</span></div>
+    </header>
 
-      <section class="system-strip" aria-label="Состояние системы">
-        <div><span class="dot online"></span><small>Локальное ядро</small><b id="coreState">Проверка…</b></div>
-        <div><span class="dot" id="obsidianDot"></span><small>Obsidian</small><b id="obsidian">Проверка…</b></div>
-        <div><span class="dot" id="voiceDot"></span><small>Голосовой интерфейс</small><b id="voiceState">Проверка браузера…</b></div>
+    <main id="home" class="hud">
+      <aside class="left-column">
+        <section class="hud-panel system-panel">
+          <div class="panel-title">SYSTEM <span id="systemState" class="tiny-state">CHECKING</span></div>
+          <div class="metric"><div><span>CORE</span><b id="coreMetric">—</b></div><i><em id="coreBar" style="width:0%"></em></i></div>
+          <div class="metric"><div><span>MEMORY</span><b id="memoryMetric">—</b></div><i><em id="memoryBar" style="width:0%"></em></i></div>
+          <div class="metric"><div><span>OBSIDIAN</span><b id="diskMetric">—</b></div><i><em id="diskBar" style="width:0%"></em></i></div>
+          <div class="clock" id="clock">--:--:--</div>
+          <div class="date" id="date">LOCAL SYSTEM TIME</div>
+        </section>
+
+        <section class="hud-panel inbox-panel">
+          <div class="panel-title">INBOX <span class="tiny-state" id="inboxState">NOT CONNECTED</span></div>
+          <div class="panel-copy" id="inboxSummary">Gmail connection is not configured.<br>Connect an account to view messages.</div>
+          <button class="text-action" type="button" data-module="connections">[ OPEN INTEGRATIONS ]</button>
+        </section>
+
+        <section class="hud-panel github-panel">
+          <div class="panel-title">GITHUB <span class="tiny-state" id="githubState">NOT CONNECTED</span></div>
+          <div class="panel-copy" id="githubSummary">Repository monitor is waiting<br>for a GitHub connection.</div>
+          <button class="text-action" type="button" data-module="connections">[ CONNECT SERVICE ]</button>
+        </section>
+      </aside>
+
+      <section class="core-column" aria-label="JARVIS core">
+        <div class="orbit-label label-one">AI CORE · LOCAL FIRST</div>
+        <div class="core-stage" id="coreStage">
+          <div class="orbit orbit-a"></div><div class="orbit orbit-b"></div><div class="orbit orbit-c"></div>
+          <div class="ticks-ring"></div><div class="segments"></div>
+          <div class="core-glow"></div>
+          <div class="core-sphere"><div class="core-facet"></div><div class="core-light"></div></div>
+          <div class="core-crosshair"></div>
+        </div>
+        <div class="core-state" id="coreLabel">STANDBY</div>
+        <div class="core-caption" id="coreCaption">AWAITING YOUR COMMAND</div>
       </section>
 
-      <section class="grid">
-        <article class="panel hero" id="assistant">
-          <div class="panel-head"><div><p class="eyebrow">VOICE & COMMAND</p><h2>Слушаю ваши команды</h2></div><span class="chip" id="engineChip">RULE ENGINE</span></div>
-          <div class="assistant-core">
-            <div class="reactor" id="reactor"><span class="reactor-ring"></span><span class="reactor-core"></span></div>
-            <div><b id="assistantMode">JARVIS готов</b><small id="voiceHint">Нажмите микрофон или напишите команду</small></div>
+      <aside class="right-column">
+        <section class="hud-panel transcript-panel">
+          <div class="panel-title">TRANSCRIPT <span class="tiny-state">LIVE</span></div>
+          <div class="transcript" id="chatlog" aria-live="polite">
+            <div class="message jarvis"><span class="prompt-mark">»</span><span>Good day. All systems are standing by. How may I help?</span></div>
           </div>
-          <div id="chatlog" class="chatlog" aria-live="polite"><div class="bubble jarvis">Я JARVIS. Сейчас доступны команды, задачи, память, поиск по заметкам и погода. Голосовой ввод и озвучивание ответов работают через браузер, если он поддерживает эти функции.</div></div>
-          <form id="chatform" class="composer">
-            <input id="message" placeholder="Скажите или напишите команду…" autocomplete="off" aria-label="Команда JARVIS">
-            <button type="submit">Отправить</button>
-            <button type="button" class="secondary mic" id="voice" aria-label="Начать голосовой ввод" title="Голосовой ввод">🎙</button>
-          </form>
-          <div class="voice-options">
-            <label><input type="checkbox" id="speakReplies" checked> Озвучивать ответы</label>
-            <span id="recognitionStatus">Голос: ожидание</span>
+          <div class="transcript-tools">
+            <label><input type="checkbox" id="speakReplies" checked> VOICE RESPONSE</label>
+            <span id="recognitionStatus">MIC STANDBY</span>
           </div>
-        </article>
+        </section>
 
-        <article class="panel" id="tasks">
-          <div class="panel-head"><div><p class="eyebrow">TASK MANAGER</p><h2>Задачи</h2></div><span class="count" id="taskcount">0</span></div>
-          <form id="taskform" class="task-add"><input id="tasktitle" placeholder="Новая задача…" required><button aria-label="Добавить задачу">+</button></form>
-          <ul id="taskslist" class="tasks"></ul>
-        </article>
-
-        <article class="panel" id="memory">
-          <div class="panel-head"><div><p class="eyebrow">LONG-TERM MEMORY</p><h2>Память</h2></div><span class="chip">LOCAL SQLITE</span></div>
-          <form id="memoryform"><textarea id="memorytext" placeholder="Сохранить важную информацию…"></textarea><input id="memorytags" placeholder="Теги (необязательно)"><button>Сохранить в память</button></form>
-          <div id="memorylist" class="memory-list"></div>
-        </article>
-
-        <article class="panel" id="connections">
-          <div class="panel-head"><div><p class="eyebrow">INTEGRATIONS</p><h2>Подключения</h2></div><span class="chip">ROADMAP</span></div>
-          <div class="connection"><span>Obsidian · файловый доступ</span><b id="obsidianMode">Проверка…</b></div>
-          <div class="connection"><span>OpenAI / другие AI</span><b class="planned">Следующий этап</b></div>
-          <div class="connection"><span>Gmail</span><b class="planned">OAuth — план</b></div>
-          <div class="connection"><span>Google Calendar</span><b class="planned">OAuth — план</b></div>
-          <div class="connection"><span>Погода</span><b class="planned">Команда ядра</b></div>
-          <div class="connection"><span>Голосовой ввод / ответ</span><b id="voiceConnection">Проверка…</b></div>
-          <p class="hint">Подключения будут добавляться модулями. Отправка писем, изменение календаря и другие внешние действия потребуют подтверждения.</p>
-        </article>
-      </section>
-      <footer>JARVIS · LOCAL-FIRST PERSONAL ASSISTANT · DEVELOPMENT BUILD</footer>
+        <section class="hud-panel terminal-panel">
+          <div class="terminal-head"><span class="window-dots"><i></i><i></i><i></i></span><span>jarvis://activity</span><b id="activityCount">0 live</b></div>
+          <div class="terminal-output" id="activityLog" aria-live="polite"><p><span class="terminal-mark">$</span> JARVIS core initialized</p></div>
+          <div class="terminal-input"><span>$</span><span class="terminal-cursor"></span></div>
+        </section>
+      </aside>
     </main>
+
+    <form class="command-bar" id="chatform">
+      <span class="command-chevron">›</span>
+      <input id="message" autocomplete="off" placeholder="Type, or press Tab to talk…  (Enter to send · click mic to speak)" aria-label="JARVIS command">
+      <button type="button" id="voice" class="mic-button" aria-label="Start voice input" title="Voice input">◉</button>
+      <button type="submit" class="send-button">SEND</button>
+    </form>
+
+    <nav class="module-dock" aria-label="System modules">
+      <button type="button" data-module="tasks">TASKS <span id="taskcount">0</span></button>
+      <button type="button" data-module="memory">MEMORY</button>
+      <button type="button" data-module="connections">INTEGRATIONS</button>
+      <button type="button" data-module="settings">SETTINGS</button>
+    </nav>
+
+    <section class="module-drawer" id="moduleDrawer" hidden>
+      <div class="drawer-head"><span id="drawerTitle">SYSTEM MODULE</span><button type="button" id="closeDrawer" aria-label="Close module">×</button></div>
+      <section id="tasksModule" class="drawer-module" hidden>
+        <form id="taskform" class="inline-form"><input id="tasktitle" placeholder="New task…" required><button type="submit">ADD TASK</button></form>
+        <ul id="taskslist" class="tasks"></ul>
+      </section>
+      <section id="memoryModule" class="drawer-module" hidden>
+        <form id="memoryform"><textarea id="memorytext" placeholder="Save information to local memory…"></textarea><input id="memorytags" placeholder="Tags (optional)"><button type="submit">SAVE MEMORY</button></form>
+        <div id="memorylist" class="memory-list"></div>
+      </section>
+      <section id="connectionsModule" class="drawer-module" hidden>
+        <div class="connection"><span>Obsidian local vault</span><b id="obsidianMode">CHECKING</b></div>
+        <div class="connection"><span>OpenAI / AI providers</span><b class="planned">NOT CONFIGURED</b></div>
+        <div class="connection"><span>Gmail</span><b class="planned">NOT CONNECTED</b></div>
+        <div class="connection"><span>Google Calendar</span><b class="planned">NOT CONNECTED</b></div>
+        <div class="connection"><span>GitHub</span><b class="planned">NOT CONNECTED</b></div>
+        <p class="drawer-note">External actions such as sending email or changing calendar events will require your confirmation.</p>
+      </section>
+      <section id="settingsModule" class="drawer-module" hidden>
+        <label class="setting-row"><span>Speak JARVIS responses</span><input type="checkbox" id="speakRepliesAlt" checked></label>
+        <p class="drawer-note">Current mode: local-first. Voice input uses browser speech recognition when supported.</p>
+      </section>
+    </section>
+    <footer>J.A.R.V.I.S. <span>·</span> PERSONAL AI OPERATING SYSTEM <span>·</span> LOCAL SESSION</footer>
   </div>
   <script src="/static/app.js"></script>
 </body>
