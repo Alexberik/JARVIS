@@ -21,15 +21,15 @@
         <section class="hud-panel system-panel">
           <div class="panel-title">SYSTEM <span id="systemState" class="tiny-state">CHECKING</span></div>
           <div class="metric"><div><span>CORE</span><b id="coreMetric">—</b></div><i><em id="coreBar" style="width:0%"></em></i></div>
-          <div class="metric"><div><span>VOICE</span><b id="memoryMetric">—</b></div><i><em id="memoryBar" style="width:0%"></em></i></div>
-          <div class="metric"><div><span>OBSIDIAN</span><b id="diskMetric">—</b></div><i><em id="diskBar" style="width:0%"></em></i></div>
+          <div class="metric"><div><span>VOICE</span><b id="voiceMetric">—</b></div><i><em id="voiceBar" style="width:0%"></em></i></div>
+          <div class="metric"><div><span>VAULT</span><b id="vaultMetric">—</b></div><i><em id="vaultBar" style="width:0%"></em></i></div>
           <div class="clock" id="clock">--:--:--</div>
           <div class="date" id="date">LOCAL SYSTEM TIME</div>
         </section>
 
         <section class="hud-panel inbox-panel">
           <div class="panel-title">INBOX <span class="tiny-state" id="inboxState">NOT CONNECTED</span></div>
-          <div class="panel-copy" id="inboxSummary">Gmail connection is not configured.<br>Connect an account to view messages.</div>
+          <div class="panel-copy" id="inboxSummary">Gmail is not connected.<br>Inbox preview will appear after authorization.</div>
           <button class="text-action" type="button" data-module="connections">[ OPEN INTEGRATIONS ]</button>
         </section>
 
@@ -66,7 +66,7 @@
         </section>
 
         <section class="hud-panel terminal-panel">
-          <div class="terminal-head"><span class="window-dots"><i></i><i></i><i></i></span><span>jarvis://activity</span><b id="activityCount">0 live</b></div>
+          <div class="terminal-head"><span class="window-dots"><i></i><i></i><i></i></span><span>jarvis://activity</span><b id="activityCount">0 events</b></div>
           <div class="terminal-output" id="activityLog" aria-live="polite"><p><span class="terminal-mark">$</span> JARVIS core initialized</p></div>
           <div class="terminal-input"><span>$</span><span class="terminal-cursor"></span></div>
         </section>
