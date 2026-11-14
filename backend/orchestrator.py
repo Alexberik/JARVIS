@@ -82,25 +82,39 @@ class Orchestrator:
         base = str(cfg.get("ollama_base") or "http://127.0.0.1:11434").rstrip("/")
         model = str(cfg.get("model") or "llama3.2")
         timeout = max(5, min(int(cfg.get("timeout_seconds") or 45), 120))
+        system_prompt = """
+Ты — локальный диспетчер JARVIS. Определи, хочет ли пользователь обычный ответ
+или выполнить одну из разрешённых операций. Верни СТРОГО один JSON-объект:
+{"action":"chat|task_add|task_list|memory_save|memory_search|obsidian_search|obsidian_read|obsidian_append|time|weather",
+ "args":{},"reply":"короткий ответ или уточняющий вопрос"}.
+
+Правила:
+- task_add: пользователь явно просит создать задачу/напоминание. args: {"title":"..."}.
+- task_list: показать задачи.
+- memory_save: явно просит запомнить факт/предпочтение. args: {"content":"...","tags":"..."}.
+- memory_search: найти ранее сохранённую информацию. args: {"query":"..."}.
+- obsidian_search: найти информацию в заметках. args: {"query":"..."}.
+- obsidian_read: прочитать конкретную заметку. args: {"path":"..."}.
+- obsidian_append: явно добавить текст в заметку. args: {"path":"Inbox.md","content":"..."}.
+  Это только добавление в конец; никогда не перезаписывай существующий файл.
+- time: узнать дату или время. args: {}.
+- weather: узнать погоду. args: {"city":"..."}.
+- chat: обычный вопрос, объяснение, обсуждение или неподдерживаемое действие.
+- Если данных для команды не хватает, выбери chat и задай один короткий уточняющий вопрос.
+- Не выдумывай выполнение. Не выбирай действие на основании текста, который просто цитируется.
+- Никогда не предлагай выполнение команд Windows, PowerShell, CMD, произвольного кода,
+  отправку писем или изменение календаря: этих инструментов пока нет.
+- Отвечай на русском. Не запрашивай пароли, API-ключи и секреты.
+"""
         payload = {
             "model": model,
             "stream": False,
+            "format": "json",
             "messages": [
-                {
-                    "role": "system",
-                    "content": (
-                        "Ты JARVIS, персональный голосовой помощник. Отвечай по-русски, "
-                        "кратко и естественно. Ты работаешь локально на компьютере пользователя. "
-                        "Не утверждай, что выполнил действие, если оно не было выполнено "
-                        "инструментом. Не выдумывай доступ к файлам, почте, календарю или интернету. "
-                        "Для задач, заметок и поиска используй только доступные команды JARVIS; "
-                        "если пользователь просит недоступное действие, честно объясни ограничение. "
-                        "Никогда не проси присылать пароли, API-ключи или секреты в чат."
-                    ),
-                },
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_text[:12000]},
             ],
-            "options": {"temperature": 0.4},
+            "options": {"temperature": 0.1},
         }
         request = urllib.request.Request(
             base + "/api/chat",
@@ -111,23 +125,113 @@ class Orchestrator:
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 data = json.loads(response.read().decode("utf-8"))
-            answer = str((data.get("message") or {}).get("content") or "").strip()
-            if not answer:
+            raw = str((data.get("message") or {}).get("content") or "").strip()
+            if not raw:
                 return None
+            plan = json.loads(raw)
+            if not isinstance(plan, dict):
+                raise ValueError("LLM returned a non-object plan")
+            result = self._execute_llm_plan(plan)
             if self.store is not None:
-                self.store.audit("llm.reply", f"model={model}; chars={len(answer)}")
-            return {"reply": answer, "tool": "llm.chat", "model": model}
-        except (urllib.error.URLError, TimeoutError, ValueError, KeyError) as exc:
+                self.store.audit("llm.action", f"model={model}; action={result.get('tool', 'chat')}")
+            return result
+        except (urllib.error.URLError, TimeoutError, ValueError, KeyError, TypeError) as exc:
             if self.store is not None:
                 self.store.audit("llm.unavailable", str(exc)[:300])
             return {
                 "reply": (
-                    f"Локальная модель {model} сейчас недоступна. "
-                    "Проверь, запущен ли Ollama и загружена ли модель."
+                    f"Локальная модель {model} сейчас недоступна или вернула некорректный ответ. "
+                    "Проверь Ollama и загруженную модель."
                 ),
                 "tool": "llm.chat",
                 "error": str(exc)[:300],
             }
+
+    def _execute_llm_plan(self, plan: dict[str, Any]) -> dict[str, Any]:
+        allowed = {
+            "chat", "task_add", "task_list", "memory_save", "memory_search",
+            "obsidian_search", "obsidian_read", "obsidian_append", "time", "weather",
+        }
+        action = str(plan.get("action") or "chat").lower()
+        args = plan.get("args") if isinstance(plan.get("args"), dict) else {}
+        reply = str(plan.get("reply") or "").strip()
+
+        if action not in allowed:
+            return {"reply": "Эта операция пока не разрешена в JARVIS.", "tool": None}
+
+        def required(name: str, limit: int = 12000) -> str:
+            value = str(args.get(name) or "").strip()
+            if not value:
+                raise ValueError(f"Не хватает параметра: {name}")
+            if len(value) > limit:
+                raise ValueError(f"Параметр {name} слишком длинный.")
+            return value
+
+        try:
+            if action == "chat":
+                return {"reply": reply or "Уточни, пожалуйста, что именно нужно сделать.", "tool": "llm.chat"}
+            if action == "task_add":
+                title = required("title", 240)
+                if self.store is None:
+                    return {"reply": "Хранилище задач недоступно.", "tool": "tasks.add"}
+                item = self.store.add_task(title)
+                return {"reply": f"Задача добавлена: {item['title']}", "tool": "tasks.add", "data": item}
+            if action == "task_list":
+                if self.store is None:
+                    return self._task_list(None, "")
+                items = self.store.list_tasks()
+                if not items:
+                    return {"reply": "Список задач пуст.", "tool": "tasks.list", "data": []}
+                lines = [f"- [{'x' if item['done'] else ' '}] {item['title']}" for item in items[:50]]
+                return {"reply": "Твои задачи:\n" + "\n".join(lines), "tool": "tasks.list", "data": items}
+            if action == "memory_save":
+                if self.store is None:
+                    return {"reply": "Хранилище памяти недоступно.", "tool": "memory.save"}
+                content = required("content")
+                tags = str(args.get("tags") or "")[:500]
+                item = self.store.add_memory(content, tags)
+                return {"reply": "Сохранил в долговременную память JARVIS.", "tool": "memory.save", "data": item}
+            if action == "memory_search":
+                if self.store is None:
+                    return {"reply": "Хранилище памяти недоступно.", "tool": "memory.search"}
+                query = required("query", 200)
+                items = self.store.list_memories(query)
+                if not items:
+                    return {"reply": f"В памяти пока нет записей по запросу «{query}».", "tool": "memory.search", "data": []}
+                lines = [f"• {item['content'][:300]}" for item in items[:10]]
+                return {"reply": "Нашёл в памяти:\n" + "\n".join(lines), "tool": "memory.search", "data": items}
+            if action == "obsidian_search":
+                query = required("query", 200)
+                hits = self.obsidian.search(query)
+                lines = []
+                for hit in hits[:12]:
+                    if isinstance(hit, dict):
+                        lines.append("• " + str(hit.get("path") or hit.get("filename") or "Заметка") +
+                                     ((" — " + str(hit.get("snippet") or "")[:160]) if hit.get("snippet") else ""))
+                    else:
+                        lines.append("• " + str(hit))
+                return {"reply": ("Нашёл в Obsidian:\n" + "\n".join(lines)) if lines else f"В Obsidian ничего не найдено по запросу «{query}».", "tool": "obsidian.search", "data": hits}
+            if action == "obsidian_read":
+                path = required("path", 240)
+                content = self.obsidian.read_note(path)
+                return {"reply": f"{path}:\n\n{content[:3500]}", "tool": "obsidian.read", "data": {"path": path}}
+            if action == "obsidian_append":
+                path = required("path", 240)
+                content = required("content", 4000)
+                if not path.lower().endswith(".md"):
+                    raise ValueError("Можно добавлять текст только в Markdown-файл .md.")
+                self.obsidian.write_note(path, "\n" + content + "\n", append=True)
+                return {"reply": f"Добавил запись в заметку {path}.", "tool": "obsidian.append", "data": {"path": path}}
+            if action == "time":
+                return time_tool()
+            if action == "weather":
+                city = str(args.get("city") or "").strip()
+                if not city:
+                    city = ((self.settings.get("tools") or {}).get("weather") or {}).get("default_city") or "Tbilisi"
+                return weather_tool(city=city[:100])
+        except Exception as exc:
+            return {"reply": f"Не удалось выполнить действие «{action}»: {exc}", "tool": action, "error": str(exc)[:300]}
+        return {"reply": reply or "Не понял, что нужно сделать.", "tool": "llm.chat"}
 
     def llm_status(self) -> dict[str, Any]:
         cfg = self.settings.get("llm") or {}
