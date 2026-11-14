@@ -99,6 +99,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {"ok": True, "name": "JARVIS", "version": "0.3"})
         if path == "/api/obsidian/status":
             return self._json(200, OBSIDIAN.status())
+        if path == "/api/llm/status":
+            return self._json(200, ORCH.llm_status())
         if path == "/api/tasks":
             return self._json(200, STORE.list_tasks())
         if path == "/api/memory":
