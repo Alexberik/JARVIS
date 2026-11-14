@@ -75,8 +75,8 @@
 
     <form class="command-bar" id="chatform">
       <span class="command-chevron">›</span>
-      <input id="message" autocomplete="off" placeholder="Type, or press Tab to talk…  (Enter to send · click mic to speak)" aria-label="JARVIS command">
-      <button type="button" id="voice" class="mic-button" aria-label="Start voice input" title="Voice input">◉</button>
+      <input id="message" autocomplete="off" placeholder="Say «Джарвис» to give a command · click mic once to activate hands-free" aria-label="JARVIS command">
+      <button type="button" id="voice" class="mic-button" aria-label="Start voice input" title="Activate hands-free voice mode (one click to grant microphone access)">◉</button>
       <button type="submit" class="send-button">SEND</button>
     </form>
 
@@ -99,7 +99,7 @@
       </section>
       <section id="connectionsModule" class="drawer-module" hidden>
         <div class="connection"><span>Obsidian local vault</span><b id="obsidianMode">CHECKING</b></div>
-        <div class="connection"><span>OpenAI / AI providers</span><b class="planned">NOT CONFIGURED</b></div>
+        <div class="connection"><span>Ollama · local LLM</span><b id="llmState" class="planned">CHECKING</b></div>
         <div class="connection"><span>Gmail</span><b class="planned">NOT CONNECTED</b></div>
         <div class="connection"><span>Google Calendar</span><b class="planned">NOT CONNECTED</b></div>
         <div class="connection"><span>GitHub</span><b class="planned">NOT CONNECTED</b></div>
