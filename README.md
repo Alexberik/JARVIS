@@ -57,10 +57,10 @@ if (!(Test-Path config\settings.json)) {
   Copy-Item config\settings.example.json config\settings.json
 }
 $config = Get-Content config\settings.json -Raw -Encoding UTF8 | ConvertFrom-Json
-$config.llm.provider = "ollama"
-$config.llm.ollama_base = "http://127.0.0.1:11434"
-$config.llm.model = "llama3.2"
-$config.llm.timeout_seconds = 45
+$config.llm | Add-Member -NotePropertyName provider -NotePropertyValue "ollama" -Force
+$config.llm | Add-Member -NotePropertyName ollama_base -NotePropertyValue "http://127.0.0.1:11434" -Force
+$config.llm | Add-Member -NotePropertyName model -NotePropertyValue "llama3.2" -Force
+$config.llm | Add-Member -NotePropertyName timeout_seconds -NotePropertyValue 45 -Force
 $config | ConvertTo-Json -Depth 20 | Set-Content config\settings.json -Encoding UTF8
 ```
 
