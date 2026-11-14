@@ -238,7 +238,7 @@ function startRecognition() {
           sendCommand(command, "voice");
         } else {
           logActivity("WAKE WORD DETECTED");
-          speak("Слушаю.", resumeVoice);
+          if (!speak("Слушаю.", resumeVoice)) resumeVoice();
         }
         return;
       }
@@ -252,7 +252,12 @@ function startRecognition() {
     }
   };
   recognition.onerror = event => {
-    if (!["no-speech", "aborted"].includes(event.error)) {
+    if (["not-allowed", "service-not-allowed"].includes(event.error)) {
+      handsFreeEnabled = false;
+      processingVoice = false;
+      $("#recognitionStatus").textContent = "MICROPHONE PERMISSION REQUIRED";
+      logActivity("MICROPHONE PERMISSION DENIED", "error");
+    } else if (!["no-speech", "aborted"].includes(event.error)) {
       $("#recognitionStatus").textContent = "MIC ERROR · " + event.error.toUpperCase();
       logActivity("VOICE INPUT ERROR · " + event.error, "error");
     }
@@ -353,6 +358,17 @@ async function refreshStatus() {
     $("#systemState").textContent = "OFFLINE";
     $("#coreMetric").textContent = "OFFLINE";
     $("#coreBar").style.width = "0%";
+  }
+  try {
+    const llm = await api("/api/llm/status");
+    const llmState = $("#llmState");
+    if (llmState) {
+      llmState.textContent = llm.ok ? "ONLINE · " + llm.model : (llm.reason === "model_not_downloaded" ? "MODEL NOT DOWNLOADED" : "OFFLINE");
+      llmState.style.color = llm.ok ? "var(--cyan)" : "var(--gold)";
+    }
+  } catch {
+    const llmState = $("#llmState");
+    if (llmState) llmState.textContent = "STATUS UNKNOWN";
   }
   try {
     const status = await api("/api/obsidian/status");
