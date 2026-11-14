@@ -30,7 +30,7 @@ class Orchestrator:
             (re.compile(r"(прочитай|read|открой|open)\s+(.+)", re.I), self._read),
             (re.compile(r"(запиши|write|создай заметку)\s+([^\n]+)", re.I), self._write_hint),
             (re.compile(r"(погод\w*|weather)(?:\s+(.+))?", re.I), self._weather),
-            (re.compile(r"(добавь задачу|новая задача|task add)\s+(.+)", re.I), self._task_add),
+            (re.compile(r"(добавь задачу|создай задачу|поставь задачу|новая задача|task add)\s+(.+)", re.I), self._task_add),
             (re.compile(r"(задачи|tasks|todo|список задач)", re.I), self._task_list),
             (re.compile(r"(время|time|дата|date)", re.I), self._time),
             (re.compile(r"(помощь|help|команды|commands)", re.I), self._help),
