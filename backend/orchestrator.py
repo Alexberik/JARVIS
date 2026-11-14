@@ -4,7 +4,10 @@ Later: free-form via Ollama when no rule matches.
 """
 from __future__ import annotations
 
+import json
 import re
+import urllib.error
+import urllib.request
 from typing import Any, Callable
 
 from .obsidian_client import ObsidianClient
@@ -59,14 +62,72 @@ class Orchestrator:
             if m:
                 return fn(m, text)
 
+        llm_result = self._ask_llm(text)
+        if llm_result:
+            return llm_result
         return {
             "reply": (
-                "Команда не распознана. Пока без LLM — только правила.\n"
+                "Команда не распознана, а локальная LLM недоступна.\n"
                 "Примеры: статус, погода, задачи, добавь задачу …, "
                 "найди …, запиши в Log.md: текст, помощь."
             ),
             "tool": None,
         }
+
+    def _ask_llm(self, user_text: str) -> dict[str, Any] | None:
+        cfg = self.settings.get("llm") or {}
+        provider = str(cfg.get("provider") or "none").lower()
+        if provider != "ollama":
+            return None
+        base = str(cfg.get("ollama_base") or "http://127.0.0.1:11434").rstrip("/")
+        model = str(cfg.get("model") or "llama3.2")
+        timeout = max(5, min(int(cfg.get("timeout_seconds") or 45), 120))
+        payload = {
+            "model": model,
+            "stream": False,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "Ты JARVIS, персональный голосовой помощник. Отвечай по-русски, "
+                        "кратко и естественно. Ты работаешь локально на компьютере пользователя. "
+                        "Не утверждай, что выполнил действие, если оно не было выполнено "
+                        "инструментом. Не выдумывай доступ к файлам, почте, календарю или интернету. "
+                        "Для задач, заметок и поиска используй только доступные команды JARVIS; "
+                        "если пользователь просит недоступное действие, честно объясни ограничение. "
+                        "Никогда не проси присылать пароли, API-ключи или секреты в чат."
+                    ),
+                },
+                {"role": "user", "content": user_text[:12000]},
+            ],
+            "options": {"temperature": 0.4},
+        }
+        request = urllib.request.Request(
+            base + "/api/chat",
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            answer = str((data.get("message") or {}).get("content") or "").strip()
+            if not answer:
+                return None
+            if self.store is not None:
+                self.store.audit("llm.reply", f"model={model}; chars={len(answer)}")
+            return {"reply": answer, "tool": "llm.chat", "model": model}
+        except (urllib.error.URLError, TimeoutError, ValueError, KeyError) as exc:
+            if self.store is not None:
+                self.store.audit("llm.unavailable", str(exc)[:300])
+            return {
+                "reply": (
+                    f"Локальная модель {model} сейчас недоступна. "
+                    "Проверь, запущен ли Ollama и загружена ли модель."
+                ),
+                "tool": "llm.chat",
+                "error": str(exc)[:300],
+            }
 
     def _status(self, m, text):
         st = self.obsidian.status()
