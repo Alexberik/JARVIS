@@ -32,6 +32,46 @@ git pull --ff-only origin main
 
 Если Git сообщает о локальных изменениях, остановись и сохрани их осознанно — не удаляй их командами очистки.
 
+## Подключение локальной LLM и голосового режима
+
+JARVIS использует локальный Ollama API — ключи и платная облачная подписка для этого режима не нужны.
+
+1. Установи Ollama для Windows с официального сайта: https://ollama.com/download
+2. Открой PowerShell и загрузи модель:
+
+```powershell
+ollama pull llama3.2
+```
+
+3. Убедись, что Ollama отвечает:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:11434/api/tags
+```
+
+4. В корне JARVIS включи провайдера в локальном конфиге, не заменяя остальные настройки:
+
+```powershell
+Set-Location "C:\Users\Admin\JARVIS"
+if (!(Test-Path config\settings.json)) {
+  Copy-Item config\settings.example.json config\settings.json
+}
+$config = Get-Content config\settings.json -Raw -Encoding UTF8 | ConvertFrom-Json
+$config.llm.provider = "ollama"
+$config.llm.ollama_base = "http://127.0.0.1:11434"
+$config.llm.model = "llama3.2"
+$config.llm.timeout_seconds = 45
+$config | ConvertTo-Json -Depth 20 | Set-Content config\settings.json -Encoding UTF8
+```
+
+5. Перезапусти JARVIS. В разделе **Integrations** состояние Ollama должно стать ONLINE. Если модель не скачана, панель покажет MODEL NOT DOWNLOADED.
+
+### Голос без повторных нажатий
+
+Открой JARVIS в актуальном Chrome или Edge, нажми значок микрофона один раз и разреши доступ к микрофону. После этого можно произносить «Джарвис, добавь задачу купить продукты» или сначала сказать «Джарвис», дождаться ответа «Слушаю», затем произнести команду. JARVIS озвучит ответ и снова включит ожидание ключевого слова.
+
+Это hands-free режим вкладки браузера, а не системный фоновый wake-word сервис: браузер может приостанавливать распознавание в фоне, после блокировки Windows или при потере разрешения микрофона. Для постоянного прослушивания вне браузера потребуется отдельный локальный Windows-служебный модуль с офлайн-распознаванием. Произвольные команды PowerShell/CMD не исполняются; действия ограничены явно реализованными командами JARVIS.
+
 ## Что работает в текущей версии
 
 - Веб-панель с тёмной темой.
